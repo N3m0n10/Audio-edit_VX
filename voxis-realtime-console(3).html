@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Console Voxis — Edição de Voz em Tempo Real</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#101215;
+    --panel:#191c21;
+    --panel-raised:#20242a;
+    --line:#2b3038;
+    --line-soft:#22262c;
+    --brass:#c9974f;
+    --brass-bright:#e8bb72;
+    --teal:#4fb8ac;
+    --red:#e2574c;
+    --text:#e9e7e2;
+    --text-dim:#9aa0a8;
+    --text-faint:#565c64;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1b2027 0%, transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, #191b1f 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:"Inter", system-ui, sans-serif;
+    min-height:100vh;
+    padding:32px 20px 60px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+
+  /* ---------- header ---------- */
+  .head{margin-bottom:28px;}
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    letter-spacing:.18em;
+    color:var(--brass);
+    text-transform:uppercase;
+    display:flex; align-items:center; gap:8px;
+    margin-bottom:10px;
+  }
+  .eyebrow::before{
+    content:"";
+    width:7px;height:7px;border-radius:50%;
+    background:var(--teal);
+    box-shadow:0 0 8px var(--teal);
+  }
+  h1{
+    font-family:"Barlow Condensed", sans-serif;
+    font-weight:700;
+    font-size:clamp(30px, 4vw, 44px);
+    letter-spacing:.01em;
+    margin:0 0 8px;
+  }
+  .head p{
+    color:var(--text-dim);
+    max-width:640px;
+    line-height:1.55;
+    margin:0;
+    font-size:14.5px;
+  }
+
+  /* ---------- signal chain diagram ---------- */
+  .chain{
+    display:flex;
+    align-items:center;
+    gap:0;
+    overflow-x:auto;
+    margin:26px 0 30px;
+    padding:18px 4px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .chain-block{
+    flex:0 0 auto;
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    padding:10px 14px;
+    min-width:78px;
+  }
+  .chain-block .dot{
+    width:10px;height:10px;border-radius:50%;
+    background:var(--line);
+    border:1px solid var(--text-faint);
+    transition:background .2s, box-shadow .2s, border-color .2s;
+  }
+  .chain-block.always .dot{background:var(--brass);border-color:var(--brass);box-shadow:0 0 8px rgba(201,151,79,.6);}
+  .chain-block.active .dot{background:var(--teal);border-color:var(--teal);box-shadow:0 0 8px rgba(79,184,172,.7);}
+  .chain-block span{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+  }
+  .chain-block.always span, .chain-block.active span{color:var(--text-dim);}
+  .chain-wire{
+    flex:0 0 auto;
+    width:26px;height:1px;
+    background:repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 10px);
+    margin-top:-16px;
+  }
+
+  /* ---------- layout ---------- */
+  .rack{
+    display:grid;
+    grid-template-columns:300px 1fr;
+    gap:18px;
+    align-items:start;
+  }
+  @media (max-width:860px){ .rack{grid-template-columns:1fr;} }
+
+  .col{display:flex;flex-direction:column;gap:18px;}
+
+  .panel{
+    background:linear-gradient(180deg, var(--panel-raised), var(--panel));
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px;
+    position:relative;
+  }
+  .panel::before, .panel::after{
+    content:"";
+    position:absolute; top:9px; width:5px;height:5px;border-radius:50%;
+    background:#0c0d0f; border:1px solid #333a42;
+  }
+  .panel::before{left:9px;}
+  .panel::after{right:9px;}
+  .panel-title{
+    font-family:"Barlow Condensed", sans-serif;
+    font-weight:600;
+    font-size:16px;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    color:var(--text);
+    margin:0 0 4px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .panel-sub{font-size:12px;color:var(--text-faint);margin:0 0 14px;}
+
+  /* ---------- source panel ---------- */
+  .file-btn{
+    display:block; width:100%;
+    background:var(--brass);
+    color:#1a1305;
+    font-weight:600; font-size:14px;
+    text-align:center;
+    padding:11px 14px;
+    border-radius:7px;
+    cursor:pointer;
+    border:none;
+    font-family:"Inter", sans-serif;
+    transition:background .15s;
+  }
+  .file-btn:hover{background:var(--brass-bright);}
+  #file-input{display:none;}
+
+  .mic-btn{
+    display:block; width:100%; margin-top:10px;
+    background:transparent;
+    color:var(--text);
+    font-weight:500; font-size:13.5px;
+    text-align:center;
+    padding:10px 14px;
+    border-radius:7px;
+    cursor:pointer;
+    border:1px solid var(--line);
+    font-family:"Inter", sans-serif;
+    transition:border-color .15s, color .15s;
+  }
+  .mic-btn:hover{border-color:var(--teal);}
+  .mic-btn.is-active{border-color:var(--teal); color:var(--teal); background:rgba(79,184,172,.08);}
+
+  #player-host{margin-top:14px;}
+  #player-host audio{width:100%; height:34px;}
+
+  .scope{
+    margin-top:12px;
+    background:#0b0d0f;
+    border:1px solid var(--line-soft);
+    border-radius:7px;
+    padding:8px 8px 6px;
+  }
+  .scope-head{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:6px;
+  }
+  .scope-head span{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:9.5px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--text-faint);
+  }
+  .scope-head .scope-mode{color:var(--teal);}
+  #waveform-canvas{
+    display:block;
+    width:100%;
+    height:80px;
+    border-radius:3px;
+  }
+
+  .log{
+    margin-top:14px;
+    background:#0b0d0f;
+    border:1px solid var(--line-soft);
+    border-radius:7px;
+    padding:10px 12px;
+    font-family:"IBM Plex Mono", monospace;
+    font-size:10.5px;
+    line-height:1.6;
+    color:var(--teal);
+    white-space:pre-wrap;
+    max-height:150px;
+    overflow-y:auto;
+  }
+
+  /* ---------- presets ---------- */
+  .preset-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .preset-btn{
+    display:flex; align-items:center; gap:8px;
+    background:#14171b;
+    border:1px solid var(--line);
+    border-radius:7px;
+    padding:9px 10px;
+    color:var(--text-dim);
+    font-family:"Inter", sans-serif;
+    font-size:12.5px;
+    font-weight:500;
+    cursor:pointer;
+    text-align:left;
+    transition:border-color .15s, color .15s, background .15s;
+  }
+  .preset-btn::before{
+    content:"";
+    width:7px;height:7px;border-radius:50%;
+    background:var(--line);
+    flex:0 0 auto;
+  }
+  .preset-btn:hover{border-color:var(--text-faint); color:var(--text);}
+  .preset-btn.is-active{border-color:var(--brass); color:var(--brass-bright); background:rgba(201,151,79,.08);}
+  .preset-btn.is-active::before{background:var(--brass); box-shadow:0 0 6px var(--brass);}
+
+  /* ---------- effect modules ---------- */
+  .module{
+    background:linear-gradient(180deg, var(--panel-raised), var(--panel));
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px 18px 18px;
+    margin-bottom:14px;
+  }
+  .module:last-child{margin-bottom:0;}
+  .module-head{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .module-head h3{
+    font-family:"Barlow Condensed", sans-serif;
+    font-weight:600;
+    font-size:16.5px;
+    letter-spacing:.02em;
+    text-transform:uppercase;
+    margin:0;
+    color:var(--text);
+  }
+  .module-head h3 small{
+    display:block;
+    font-family:"Inter", sans-serif;
+    text-transform:none;
+    letter-spacing:0;
+    font-size:11px;
+    color:var(--text-faint);
+    font-weight:400;
+    margin-top:2px;
+  }
+
+  /* power switch */
+  .switch{position:relative; display:inline-block; width:38px; height:20px; flex:0 0 auto;}
+  .switch input{opacity:0; width:0; height:0;}
+  .switch .track{
+    position:absolute; inset:0; border-radius:20px;
+    background:#0c0e10; border:1px solid var(--line);
+    transition:border-color .15s;
+  }
+  .switch .track::after{
+    content:""; position:absolute; top:2px; left:2px;
+    width:14px; height:14px; border-radius:50%;
+    background:var(--text-faint);
+    transition:transform .18s, background .18s;
+  }
+  .switch input:checked + .track{border-color:var(--teal);}
+  .switch input:checked + .track::after{
+    transform:translateX(18px);
+    background:var(--teal);
+    box-shadow:0 0 6px rgba(79,184,172,.7);
+  }
+
+  .module-body{display:grid; grid-template-columns:1fr 1fr; gap:14px 18px;}
+  @media (max-width:560px){ .module-body{grid-template-columns:1fr;} }
+  .module-body.single{grid-template-columns:1fr;}
+
+  .field label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12px; color:var(--text-dim); margin-bottom:6px;
+  }
+  .field label .readout{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11.5px;
+    color:var(--brass-bright);
+  }
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none;
+    width:100%; height:3px;
+    background:var(--line);
+    border-radius:2px;
+    outline:none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:14px; height:14px; border-radius:50%;
+    background:var(--brass-bright);
+    border:2px solid #14161a;
+    box-shadow:0 0 0 1px var(--brass);
+    cursor:pointer; margin-top:-5.5px;
+  }
+  input[type="range"]::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%;
+    background:var(--brass-bright); border:2px solid #14161a;
+    box-shadow:0 0 0 1px var(--brass); cursor:pointer;
+  }
+
+  select{
+    width:100%;
+    background:#0f1114;
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:"IBM Plex Mono", monospace;
+    font-size:12px;
+    padding:7px 8px;
+    border-radius:5px;
+  }
+
+  footer{
+    margin-top:28px;
+    font-size:11.5px;
+    color:var(--text-faint);
+    font-family:"IBM Plex Mono", monospace;
+    line-height:1.7;
+  }
+  footer a{color:var(--brass); text-decoration:none;}
+  footer a:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="eyebrow">Voxis · Motor de Áudio WASM em Tempo Real</div>
+    <h1>Console de Edição de Voz em Tempo Real</h1>
+    <p>Carregue um arquivo ou ative o microfone, escolha um preset de partida e ajuste a cadeia de efeitos ao vivo. Tudo roda no navegador, processado pelo engine C++/WASM da <strong>Voxis</strong>.</p>
+  </div>
+
+  <div class="chain" id="chain">
+    <div class="chain-block always" data-stage="input"><div class="dot"></div><span>Entrada</span></div>
+    <div class="chain-wire"></div>
+    <div class="chain-block" data-stage="noise"><div class="dot"></div><span>Ruído</span></div>
+    <div class="chain-wire"></div>
+    <div class="chain-block" data-stage="voice"><div class="dot"></div><span>Voz</span></div>
+    <div class="chain-wire"></div>
+    <div class="chain-block" data-stage="dynamics"><div class="dot"></div><span>Dinâmica</span></div>
+    <div class="chain-wire"></div>
+    <div class="chain-block" data-stage="eq"><div class="dot"></div><span>Tom / EQ</span></div>
+    <div class="chain-wire"></div>
+    <div class="chain-block" data-stage="space"><div class="dot"></div><span>Espaço</span></div>
+    <div class="chain-wire"></div>
+    <div class="chain-block" data-stage="mod"><div class="dot"></div><span>Modulação</span></div>
+    <div class="chain-wire"></div>
+    <div class="chain-block" data-stage="color"><div class="dot"></div><span>Cor</span></div>
+    <div class="chain-wire"></div>
+    <div class="chain-block always" data-stage="output"><div class="dot"></div><span>Saída</span></div>
+  </div>
+
+  <div class="rack">
+    <div class="col">
+
+      <div class="panel">
+        <h2 class="panel-title">Fonte</h2>
+        <p class="panel-sub">Arquivo de áudio ou microfone ao vivo</p>
+        <label class="file-btn" for="file-input">Carregar áudio…</label>
+        <input id="file-input" type="file" accept="audio/*">
+        <button class="mic-btn" id="mic-toggle" type="button">Usar Microfone</button>
+        <div id="player-host"></div>
+        <div class="scope">
+          <div class="scope-head">
+            <span>Forma de Onda</span>
+            <span class="scope-mode" id="scope-mode">Aguardando</span>
+          </div>
+          <canvas id="waveform-canvas" width="600" height="80"></canvas>
+        </div>
+        <div class="log" id="log"></div>
+      </div>
+
+      <div class="panel">
+        <h2 class="panel-title">Presets</h2>
+        <p class="panel-sub">Pontos de partida — ajuste depois à vontade</p>
+        <div class="preset-grid">
+          <button class="preset-btn" data-preset="flat">Padrão</button>
+          <button class="preset-btn" data-preset="vocal_enhance">Voz Realçada</button>
+          <button class="preset-btn" data-preset="podcast_clean">Podcast Limpo</button>
+          <button class="preset-btn" data-preset="cinematic">Cinemático</button>
+          <button class="preset-btn" data-preset="radio">Rádio AM</button>
+          <button class="preset-btn" data-preset="lofi">Lo-fi</button>
+          <button class="preset-btn" data-preset="wide_chorus">Coro Amplo</button>
+          <button class="preset-btn" data-preset="clarity_eq">Clareza</button>
+          <button class="preset-btn" data-preset="telephone">Telefone</button>
+          <button class="preset-btn" data-preset="robot">Robô</button>
+          <button class="preset-btn" data-preset="phaser_sweep">Textura Phaser</button>
+          <button class="preset-btn" data-preset="metallic_ring">Metálico (Anel)</button>
+          <button class="preset-btn" data-preset="voice_high">Voz Aguda</button>
+          <button class="preset-btn" data-preset="harmony">Harmonia</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="col">
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Ganho de Entrada<small>Nível antes de todo o processamento</small></h3>
+        </div>
+        <div class="module-body single">
+          <div class="field">
+            <label>Ganho <span class="readout" id="gain-out">1.00x</span></label>
+            <input id="gain" type="range" min="0" max="2" step="0.01" value="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Redução de Ruído<small>Remove ruído de fundo constante</small></h3>
+          <label class="switch"><input id="toggle-noise" type="checkbox"><span class="track"></span></label>
+        </div>
+        <div class="module-body single">
+          <div class="field">
+            <label>Intensidade <span class="readout" id="noise-strength-out">0%</span></label>
+            <input id="noise-strength" type="range" min="0" max="1" step="0.01" value="0.5">
+          </div>
+        </div>
+      </div>
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Voz / Formante<small>Afinação, formante, autotune, harmonia, oitava</small></h3>
+          <label class="switch"><input id="toggle-voice" type="checkbox"><span class="track"></span></label>
+        </div>
+        <div class="module-body">
+          <div class="field">
+            <label>Tipo</label>
+            <select id="voice-type">
+              <option value="pitch_shift" selected>Afinação (Pitch Shift)</option>
+              <option value="formant_shifting">Formante</option>
+              <option value="auto_tune">Autotune</option>
+              <option value="harmonizer">Harmonizador</option>
+              <option value="octaver">Oitavador</option>
+            </select>
+          </div>
+          <div class="field">
+            <label><span id="voice-semi-label">Semitons</span> <span class="readout" id="voice-semi-out">0 st</span></label>
+            <input id="voice-semi" type="range" min="-12" max="12" step="1" value="0">
+          </div>
+          <div class="field">
+            <label><span id="voice-mix-label">Mistura</span> <span class="readout" id="voice-mix-out">100%</span></label>
+            <input id="voice-mix" type="range" min="0" max="1" step="0.01" value="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Dinâmica &amp; Clareza<small>Compressor + de-esser</small></h3>
+          <label class="switch"><input id="toggle-dynamics" type="checkbox"><span class="track"></span></label>
+        </div>
+        <div class="module-body">
+          <div class="field">
+            <label>Limiar <span class="readout" id="comp-threshold-out">-18.0 dB</span></label>
+            <input id="comp-threshold" type="range" min="-48" max="-1" step="0.5" value="-18">
+          </div>
+          <div class="field">
+            <label>Razão <span class="readout" id="comp-ratio-out">3.0:1</span></label>
+            <input id="comp-ratio" type="range" min="1" max="12" step="0.1" value="3">
+          </div>
+          <div class="field">
+            <label>Ganho de Compensação <span class="readout" id="comp-makeup-out">+0.0 dB</span></label>
+            <input id="comp-makeup" type="range" min="0" max="12" step="0.1" value="0">
+          </div>
+          <div class="field">
+            <label>De-esser <span class="readout" id="deesser-amount-out">0%</span></label>
+            <input id="deesser-amount" type="range" min="0" max="1" step="0.01" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Tom / EQ<small>Graves e agudos (shelving)</small></h3>
+          <label class="switch"><input id="toggle-eq" type="checkbox"><span class="track"></span></label>
+        </div>
+        <div class="module-body">
+          <div class="field">
+            <label>Graves (220 Hz) <span class="readout" id="eq-low-out">0.0 dB</span></label>
+            <input id="eq-low" type="range" min="-12" max="12" step="0.1" value="0">
+          </div>
+          <div class="field">
+            <label>Agudos (8.5 kHz) <span class="readout" id="eq-high-out">0.0 dB</span></label>
+            <input id="eq-high" type="range" min="-12" max="12" step="0.1" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Espaço<small>Reverb ou delay — vários tipos</small></h3>
+          <label class="switch"><input id="toggle-space" type="checkbox"><span class="track"></span></label>
+        </div>
+        <div class="module-body">
+          <div class="field">
+            <label>Tipo</label>
+            <select id="space-type">
+              <option value="room">Reverb — Sala</option>
+              <option value="hall" selected>Reverb — Hall</option>
+              <option value="plate">Reverb — Placa</option>
+              <option value="delay">Delay</option>
+              <option value="ping_pong">Delay Ping-Pong</option>
+              <option value="slapback">Slapback</option>
+              <option value="echo">Eco</option>
+            </select>
+          </div>
+          <div class="field">
+            <label><span id="space-decay-label">Decaimento</span> <span class="readout" id="space-decay-out">1.8 s</span></label>
+            <input id="space-decay" type="range" min="0.2" max="5" step="0.1" value="1.8">
+          </div>
+          <div class="field">
+            <label>Mistura / Feedback <span class="readout" id="space-mix-out">28%</span></label>
+            <input id="space-mix" type="range" min="0" max="1" step="0.01" value="0.28">
+          </div>
+        </div>
+      </div>
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Modulação<small>Chorus, flanger, phaser e mais</small></h3>
+          <label class="switch"><input id="toggle-mod" type="checkbox"><span class="track"></span></label>
+        </div>
+        <div class="module-body">
+          <div class="field">
+            <label>Tipo</label>
+            <select id="mod-type">
+              <option value="chorus" selected>Chorus</option>
+              <option value="flanger">Flanger</option>
+              <option value="phaser">Phaser</option>
+              <option value="tremolo">Tremolo</option>
+              <option value="vibrato">Vibrato</option>
+              <option value="rotary_speaker">Alto-falante Rotativo</option>
+              <option value="auto_pan">Auto-Pan</option>
+              <option value="ring_modulation">Modulação em Anel</option>
+            </select>
+          </div>
+          <div class="field">
+            <label><span id="mod-rate-label">Velocidade</span> <span class="readout" id="mod-rate-out">0.90 Hz</span></label>
+            <input id="mod-rate" type="range" min="0.05" max="8" step="0.05" value="0.9">
+          </div>
+          <div class="field">
+            <label><span id="mod-mix-label">Profundidade / Mistura</span> <span class="readout" id="mod-mix-out">35%</span></label>
+            <input id="mod-mix" type="range" min="0" max="1" step="0.01" value="0.35">
+          </div>
+          <div class="field">
+            <label>Largura Estéreo <span class="readout" id="mod-width-out">1.00x</span></label>
+            <input id="mod-width" type="range" min="1" max="2.5" step="0.05" value="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Cor / Textura<small>Caráter criativo — um efeito por vez</small></h3>
+          <label class="switch"><input id="toggle-color" type="checkbox"><span class="track"></span></label>
+        </div>
+        <div class="module-body">
+          <div class="field">
+            <label>Tipo</label>
+            <select id="color-type">
+              <option value="none">Nenhum</option>
+              <option value="radio">Rádio AM</option>
+              <option value="telephone">Telefone</option>
+              <option value="robot">Robô</option>
+              <option value="alien">Alienígena</option>
+              <option value="vinyl">Vinil</option>
+              <option value="tape">Saturação de Fita</option>
+              <option value="bitcrusher">Bitcrusher</option>
+              <option value="distortion">Distorção</option>
+              <option value="frequency_shifter">Deslocador de Frequência</option>
+              <option value="glitch">Glitch</option>
+              <option value="stutter">Gagueira (Stutter)</option>
+              <option value="granular">Síntese Granular</option>
+              <option value="lofi">Lo-fi (combo)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Intensidade <span class="readout" id="color-amount-out">50%</span></label>
+            <input id="color-amount" type="range" min="0" max="1" step="0.01" value="0.5">
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    Motor de áudio: <a href="https://voxis.org" target="_blank" rel="noopener">Voxis</a> — biblioteca open-source de DSP (Python + JavaScript + C++/WASM), API realtime servida via <a href="https://voxis.org/api/" target="_blank" rel="noopener">voxis.org/api</a>. · Os presets acima são cadeias de efeito construídas com o builder <code>effects.*</code> da Voxis, inspiradas nos presets nativos do pacote.
+  </footer>
+
+</div>
+
+<script type="module">
+import { createLockedControl, createVoxisRealtimePlayer, effects }
+  from "https://voxis.org/api/voxis-realtime.js";
+
+const $ = (s) => document.querySelector(s);
+
+function log(msg) {
+  const el = $("#log");
+  const time = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+  el.textContent += `[${time}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+const stageEls = {};
+document.querySelectorAll(".chain-block[data-stage]").forEach((el) => {
+  stageEls[el.dataset.stage] = el;
+});
+
+let player = null;
+try {
+  player = await createVoxisRealtimePlayer({ container: $("#player-host") });
+  player.onWarning?.((warning) => log("Aviso do motor: " + warning.message));
+  log("Motor Voxis inicializado.");
+} catch (err) {
+  log("Falha ao inicializar a Voxis: " + err.message);
+}
+
+// ---------- controls ----------
+const controls = {};
+function control(id, opts) {
+  const c = createLockedControl({ input: `#${id}`, output: `#${id}-out`, ...opts });
+  controls[id] = c;
+  c.element.addEventListener("input", updateChain);
+  return c;
+}
+
+control("gain", { min: 0, max: 2, step: 0.01, format: (v) => `${v.toFixed(2)}x` });
+control("noise-strength", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
+control("voice-semi", { min: -12, max: 12, step: 1, format: (v) => `${v > 0 ? "+" : ""}${v} st` });
+control("voice-mix", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
+control("comp-threshold", { min: -48, max: -1, step: 0.5, format: (v) => `${v.toFixed(1)} dB` });
+control("comp-ratio", { min: 1, max: 12, step: 0.1, format: (v) => `${v.toFixed(1)}:1` });
+control("comp-makeup", { min: 0, max: 12, step: 0.1, format: (v) => `+${v.toFixed(1)} dB` });
+control("deesser-amount", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
+control("eq-low", { min: -12, max: 12, step: 0.1, format: (v) => `${v > 0 ? "+" : ""}${v.toFixed(1)} dB` });
+control("eq-high", { min: -12, max: 12, step: 0.1, format: (v) => `${v > 0 ? "+" : ""}${v.toFixed(1)} dB` });
+control("space-decay", { min: 0.2, max: 5, step: 0.1, format: (v) => `${v.toFixed(1)} s` });
+control("space-mix", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
+control("mod-mix", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
+control("mod-rate", { min: 0.05, max: 6, step: 0.05, format: (v) => `${v.toFixed(2)} Hz` });
+control("mod-width", { min: 1, max: 2.5, step: 0.05, format: (v) => `${v.toFixed(2)}x` });
+control("color-amount", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
+
+const toggles = {};
+["noise", "voice", "dynamics", "eq", "space", "mod", "color"].forEach((key) => {
+  const el = $(`#toggle-${key}`);
+  toggles[key] = el;
+  el.addEventListener("change", updateChain);
+});
+
+const spaceType = $("#space-type");
+spaceType.addEventListener("change", () => { updateSpaceLabel(); updateChain(); });
+const colorType = $("#color-type");
+colorType.addEventListener("change", updateChain);
+const modType = $("#mod-type");
+modType.addEventListener("change", () => { updateModLabels(); updateChain(); });
+const voiceType = $("#voice-type");
+voiceType.addEventListener("change", () => { updateVoiceLabels(); updateChain(); });
+
+function updateVoiceLabels() {
+  const labels = VOICE_LABELS[voiceType.value] || VOICE_LABELS.pitch_shift;
+  $("#voice-semi-label").textContent = labels.semi;
+  $("#voice-mix-label").textContent = labels.mix;
+}
+
+function updateSpaceLabel() {
+  $("#space-decay-label").textContent = SPACE_LABELS[spaceType.value] || "Decaimento";
+}
+function updateModLabels() {
+  const labels = MOD_LABELS[modType.value] || MOD_LABELS.chorus;
+  $("#mod-rate-label").textContent = labels.rate;
+  $("#mod-mix-label").textContent = labels.amount;
+}
+
+// ---------- effect builders ----------
+const VOICE_BUILDERS = {
+  pitch_shift: (semi, mix) => [effects.pitch_shift({ semitones: semi, mix })],
+  formant_shifting: (semi, mix) => [effects.formant_shifting({ shiftSemitones: semi, mix })],
+  auto_tune: (semi, mix) => [effects.auto_tune({
+    key: "C", scale: "major",
+    speedMs: Math.round(200 - ((semi + 12) / 24) * 195),
+    mix,
+  })],
+  harmonizer: (semi, mix) => [effects.harmonizer({ intervalSemitones: semi === 0 ? 4 : semi, mix })],
+  octaver: (semi, mix) => [effects.octaver({ octaves: semi >= 0 ? 1 : -1, mix })],
+};
+const VOICE_LABELS = {
+  pitch_shift: { semi: "Semitons", mix: "Mistura" },
+  formant_shifting: { semi: "Deslocamento (semitons)", mix: "Mistura" },
+  auto_tune: { semi: "Velocidade de Correção", mix: "Quantização" },
+  harmonizer: { semi: "Intervalo (semitons)", mix: "Mistura da Harmonia" },
+  octaver: { semi: "Direção (oitava)", mix: "Mistura" },
+};
+
+const SPACE_BUILDERS = {
+  room: (t, m) => effects.room_reverb({ decaySeconds: t, mix: m }),
+  hall: (t, m) => effects.hall_reverb({ decaySeconds: t, mix: m }),
+  plate: (t, m) => effects.plate_reverb({ decaySeconds: t, mix: m }),
+  delay: (t, m) => effects.delay({ delayMs: t * 250, feedback: Math.min(0.6, m * 0.7), mix: m }),
+  ping_pong: (t, m) => effects.ping_pong_delay({ delayMs: t * 250, feedback: Math.min(0.7, m * 0.8), mix: m }),
+  slapback: (t, m) => effects.slapback({ delayMs: Math.max(30, t * 60), mix: m }),
+  echo: (t, m) => effects.echo({ delayMs: t * 250, feedback: Math.min(0.6, m * 0.7), mix: m }),
+};
+const SPACE_LABELS = {
+  room: "Decaimento", hall: "Decaimento", plate: "Decaimento",
+  delay: "Tempo de Atraso", ping_pong: "Tempo de Atraso", slapback: "Tempo de Atraso", echo: "Tempo de Atraso",
+};
+
+const MOD_BUILDERS = {
+  chorus: (r, a) => effects.chorus({ rateHz: r, mix: a }),
+  flanger: (r, a) => effects.flanger({ rateHz: r, mix: a }),
+  phaser: (r, a) => effects.phaser({ rateHz: r, depth: a, mix: a }),
+  tremolo: (r, a) => effects.tremolo({ rateHz: r, depth: a }),
+  vibrato: (r, a) => effects.vibrato({ rateHz: r, depthMs: a * 8 }),
+  rotary_speaker: (r, a) => effects.rotary_speaker({ rateHz: r, depth: a, mix: a }),
+  auto_pan: (r, a) => effects.auto_pan({ rateHz: r, depth: a }),
+  ring_modulation: (r, a) => effects.ring_modulation({ frequencyHz: 50 + r * 300, mix: a }),
+};
+const MOD_LABELS = {
+  chorus: { rate: "Velocidade", amount: "Mistura" },
+  flanger: { rate: "Velocidade", amount: "Mistura" },
+  phaser: { rate: "Velocidade", amount: "Profundidade" },
+  tremolo: { rate: "Velocidade", amount: "Profundidade" },
+  vibrato: { rate: "Velocidade", amount: "Profundidade" },
+  rotary_speaker: { rate: "Rotação", amount: "Profundidade" },
+  auto_pan: { rate: "Velocidade", amount: "Profundidade" },
+  ring_modulation: { rate: "Frequência da Portadora", amount: "Mistura" },
+};
+
+const COLOR_BUILDERS = {
+  none: () => [],
+  radio: (a) => [effects.radio_effect({ mix: 0.4 + a * 0.6 })],
+  telephone: () => [effects.telephone_effect()],
+  robot: () => [effects.robot_voice()],
+  alien: () => [effects.alien_voice()],
+  vinyl: (a) => [effects.vinyl_effect({ noise: a * 0.3, crackle: a * 0.35 })],
+  tape: (a) => [effects.tape_saturation({ drive: 1 + a * 2, softness: 0.6, mix: 0.4 + a * 0.6 })],
+  bitcrusher: (a) => [effects.bitcrusher({
+    bitDepth: Math.max(2, Math.round(16 - a * 12)),
+    sampleRateReduction: 1 + Math.round(a * 6),
+    mix: 0.85,
+  })],
+  distortion: (a) => [effects.distortion({ drive: 1 + a * 5 })],
+  frequency_shifter: (a) => [effects.frequency_shifter({ shiftHz: a * 300, mix: 1.0 })],
+  glitch: (a) => [effects.glitch_effect({ sliceMs: 80 - a * 55, mix: 0.3 + a * 0.7 })],
+  stutter: (a) => [effects.stutter({ sliceMs: 60, repeats: 2 + Math.round(a * 6), mix: 0.5 + a * 0.5 })],
+  granular: (a) => [effects.granular_synthesis({ grainMs: 30 + a * 40, density: 3 + Math.round(a * 8), pitch: 1.0, mix: 0.3 + a * 0.6 })],
+  lofi: (a) => [
+    effects.bitcrusher({ bitDepth: Math.max(4, Math.round(14 - a * 8)), sampleRateReduction: 1 + Math.round(a * 3), mix: 0.8 }),
+    effects.vinyl_effect({ noise: 0.1 + a * 0.15, crackle: 0.12 + a * 0.15 }),
+    effects.tape_saturation({ drive: 1 + a * 0.8, softness: 0.6, mix: 0.5 }),
+  ],
+};
+
+function buildChain() {
+  const chain = [effects.gain({ value: controls.gain.read(), limits: { min: 0, max: 2 } })];
+  const active = { noise: false, voice: false, dynamics: false, eq: false, space: false, mod: false, color: false };
+
+  if (toggles.noise.checked) {
+    active.noise = true;
+    chain.push(effects.noise_reduction({ strength: controls["noise-strength"].read() }));
+  }
+
+  if (toggles.voice.checked) {
+    active.voice = true;
+    const builder = VOICE_BUILDERS[voiceType.value] || VOICE_BUILDERS.pitch_shift;
+    chain.push(...builder(controls["voice-semi"].read(), controls["voice-mix"].read()));
+  }
+
+  if (toggles.dynamics.checked) {
+    active.dynamics = true;
+    chain.push(effects.compressor({
+      thresholdDb: controls["comp-threshold"].read(),
+      ratio: controls["comp-ratio"].read(),
+      makeupDb: controls["comp-makeup"].read(),
+      limits: { thresholdDb: { min: -48, max: -1 }, ratio: { min: 1, max: 12 } },
+    }));
+    const deAmt = controls["deesser-amount"].read();
+    if (deAmt > 0.01) chain.push(effects.deesser({ amount: deAmt }));
+  }
+
+  if (toggles.eq.checked) {
+    active.eq = true;
+    chain.push(effects.low_shelf({ frequencyHz: 220, gainDb: controls["eq-low"].read() }));
+    chain.push(effects.high_shelf({ frequencyHz: 8500, gainDb: controls["eq-high"].read() }));
+  }
+
+  if (toggles.space.checked) {
+    active.space = true;
+    const builder = SPACE_BUILDERS[spaceType.value] || SPACE_BUILDERS.room;
+    chain.push(builder(controls["space-decay"].read(), controls["space-mix"].read()));
+  }
+
+  if (toggles.mod.checked) {
+    active.mod = true;
+    const modBuilder = MOD_BUILDERS[modType.value] || MOD_BUILDERS.chorus;
+    chain.push(modBuilder(controls["mod-rate"].read(), controls["mod-mix"].read()));
+    chain.push(effects.stereo_width({ width: controls["mod-width"].read() }));
+  }
+
+  if (toggles.color.checked) {
+    active.color = true;
+    const amt = controls["color-amount"].read();
+    const builder = COLOR_BUILDERS[colorType.value] || COLOR_BUILDERS.none;
+    chain.push(...builder(amt));
+  }
+
+  return { chain, active };
+}
+
+function updateChain() {
+  updateSpaceLabel();
+  updateModLabels();
+  updateVoiceLabels();
+  if (!player) return;
+  const { chain, active } = buildChain();
+  player.setEffects(chain);
+  Object.entries(active).forEach(([key, on]) => stageEls[key]?.classList.toggle("active", on));
+}
+
+function setControl(id, value) {
+  const c = controls[id];
+  if (!c) return;
+  c.element.value = value;
+  c.element.dispatchEvent(new Event("input"));
+}
+function setToggle(key, on) {
+  toggles[key].checked = on;
+}
+
+// ---------- presets ----------
+const PRESETS = {
+  flat: { label: "Padrão", apply() {
+    setControl("gain", 1);
+    ["noise", "voice", "dynamics", "eq", "space", "mod", "color"].forEach((k) => setToggle(k, false));
+    spaceType.value = "hall"; modType.value = "chorus"; colorType.value = "none"; voiceType.value = "pitch_shift";
+    setControl("voice-semi", 0); setControl("voice-mix", 1);
+  }},
+  vocal_enhance: { label: "Voz Realçada", apply() {
+    setControl("gain", 1.05);
+    setToggle("noise", true); setControl("noise-strength", 0.55);
+    setToggle("voice", false);
+    setToggle("dynamics", true);
+    setControl("comp-threshold", -20); setControl("comp-ratio", 3.2); setControl("comp-makeup", 1.8);
+    setControl("deesser-amount", 0.45);
+    setToggle("eq", true); setControl("eq-low", -1.5); setControl("eq-high", 2.5);
+    setToggle("space", false); setToggle("mod", false); setToggle("color", false);
+  }},
+  podcast_clean: { label: "Podcast Limpo", apply() {
+    setControl("gain", 1.0);
+    setToggle("noise", true); setControl("noise-strength", 0.6);
+    setToggle("voice", false);
+    setToggle("dynamics", true);
+    setControl("comp-threshold", -20); setControl("comp-ratio", 3.5); setControl("comp-makeup", 1.5);
+    setControl("deesser-amount", 0.5);
+    setToggle("eq", true); setControl("eq-low", -1.0); setControl("eq-high", 1.0);
+    setToggle("space", false); setToggle("mod", false); setToggle("color", false);
+  }},
+  cinematic: { label: "Cinemático", apply() {
+    setControl("gain", 1.0);
+    setToggle("noise", false); setToggle("voice", false);
+    setToggle("dynamics", true);
+    setControl("comp-threshold", -18); setControl("comp-ratio", 2.5); setControl("comp-makeup", 1.0);
+    setControl("deesser-amount", 0);
+    setToggle("eq", true); setControl("eq-low", 1.0); setControl("eq-high", 1.0);
+    setToggle("space", true); spaceType.value = "hall"; setControl("space-decay", 2.5); setControl("space-mix", 0.32);
+    setToggle("mod", false);
+    setToggle("color", true); colorType.value = "tape"; setControl("color-amount", 0.3);
+  }},
+  radio: { label: "Rádio AM", apply() {
+    setControl("gain", 1.0);
+    ["noise", "voice", "dynamics", "eq", "space", "mod"].forEach((k) => setToggle(k, false));
+    setToggle("color", true); colorType.value = "radio"; setControl("color-amount", 0.75);
+  }},
+  lofi: { label: "Lo-fi", apply() {
+    setControl("gain", 1.0);
+    ["noise", "voice", "dynamics", "eq", "space", "mod"].forEach((k) => setToggle(k, false));
+    setToggle("color", true); colorType.value = "lofi"; setControl("color-amount", 0.55);
+  }},
+  wide_chorus: { label: "Coro Amplo", apply() {
+    setControl("gain", 1.0);
+    ["noise", "voice", "dynamics", "eq", "space"].forEach((k) => setToggle(k, false));
+    setToggle("mod", true); modType.value = "chorus";
+    setControl("mod-mix", 0.55); setControl("mod-rate", 1.1); setControl("mod-width", 1.7);
+    setToggle("color", false);
+  }},
+  clarity_eq: { label: "Clareza", apply() {
+    setControl("gain", 1.0);
+    setToggle("noise", false); setToggle("voice", false); setToggle("dynamics", false);
+    setToggle("eq", true); setControl("eq-low", 0); setControl("eq-high", 3.5);
+    setToggle("space", false); setToggle("mod", false); setToggle("color", false);
+  }},
+  telephone: { label: "Telefone", apply() {
+    setControl("gain", 1.0);
+    ["noise", "voice", "dynamics", "eq", "space", "mod"].forEach((k) => setToggle(k, false));
+    setToggle("color", true); colorType.value = "telephone"; setControl("color-amount", 0.5);
+  }},
+  robot: { label: "Robô", apply() {
+    setControl("gain", 1.0);
+    ["noise", "voice", "dynamics", "eq", "space", "mod"].forEach((k) => setToggle(k, false));
+    setToggle("color", true); colorType.value = "robot"; setControl("color-amount", 0.5);
+  }},
+  phaser_sweep: { label: "Textura Phaser", apply() {
+    setControl("gain", 1.0);
+    ["noise", "voice", "dynamics", "eq", "space"].forEach((k) => setToggle(k, false));
+    setToggle("mod", true); modType.value = "phaser";
+    setControl("mod-rate", 0.4); setControl("mod-mix", 0.7); setControl("mod-width", 1.3);
+    setToggle("color", false);
+  }},
+  metallic_ring: { label: "Metálico (Anel)", apply() {
+    setControl("gain", 1.0);
+    ["noise", "voice", "eq", "space"].forEach((k) => setToggle(k, false));
+    setToggle("dynamics", true);
+    setControl("comp-threshold", -22); setControl("comp-ratio", 3.0); setControl("comp-makeup", 1.0);
+    setControl("deesser-amount", 0);
+    setToggle("mod", true); modType.value = "ring_modulation";
+    setControl("mod-rate", 0.6); setControl("mod-mix", 0.55); setControl("mod-width", 1.0);
+    setToggle("color", false);
+  }},
+  voice_high: { label: "Voz Aguda", apply() {
+    setControl("gain", 1.0);
+    ["noise", "dynamics", "eq", "space", "mod", "color"].forEach((k) => setToggle(k, false));
+    setToggle("voice", true); voiceType.value = "pitch_shift";
+    setControl("voice-semi", 7); setControl("voice-mix", 1);
+  }},
+  harmony: { label: "Harmonia", apply() {
+    setControl("gain", 1.0);
+    ["noise", "dynamics", "eq", "space", "mod", "color"].forEach((k) => setToggle(k, false));
+    setToggle("voice", true); voiceType.value = "harmonizer";
+    setControl("voice-semi", 4); setControl("voice-mix", 0.5);
+  }},
+};
+
+document.querySelectorAll("[data-preset]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const preset = PRESETS[btn.dataset.preset];
+    if (!preset) return;
+    preset.apply();
+    document.querySelectorAll("[data-preset]").forEach((b) => b.classList.remove("is-active"));
+    btn.classList.add("is-active");
+    updateChain();
+    log(`Preset aplicado: ${preset.label}`);
+  });
+});
+
+// ---------- waveform visual ----------
+// Independent of the Voxis processing graph: draws the full-file envelope
+// decoded locally, plus a moving playhead synced to the <audio> element,
+// or a live oscilloscope fed by its own getUserMedia stream for the mic.
+// This avoids touching the player's internal audio graph.
+const waveCanvas = $("#waveform-canvas");
+const wctx = waveCanvas.getContext("2d");
+const scopeModeLabel = $("#scope-mode");
+const WAVE_W = waveCanvas.width;
+const WAVE_H = waveCanvas.height;
+const WAVE_MID = WAVE_H / 2;
+const WAVE_PLAYED = "#e8bb72";
+const WAVE_UNPLAYED = "#3a4048";
+const WAVE_LIVE = "#4fb8ac";
+
+let fileWaveformPeaks = null;
+let filePlaybackRAF = null;
+let audioElListenersAttached = false;
+
+let micWaveCtx = null;
+let micWaveStream = null;
+let micAnalyser = null;
+let micRAF = null;
+
+function drawEmptyWave(message) {
+  wctx.clearRect(0, 0, WAVE_W, WAVE_H);
+  wctx.strokeStyle = "rgba(255,255,255,0.08)";
+  wctx.beginPath(); wctx.moveTo(0, WAVE_MID); wctx.lineTo(WAVE_W, WAVE_MID); wctx.stroke();
+  wctx.fillStyle = "#565c64";
+  wctx.font = "10.5px 'IBM Plex Mono', monospace";
+  wctx.fillText(message, 8, WAVE_MID - 6);
+}
+
+function drawStaticWaveform(peaks, progressRatio = 0) {
+  wctx.clearRect(0, 0, WAVE_W, WAVE_H);
+  wctx.strokeStyle = "rgba(255,255,255,0.08)";
+  wctx.beginPath(); wctx.moveTo(0, WAVE_MID); wctx.lineTo(WAVE_W, WAVE_MID); wctx.stroke();
+
+  const playedX = Math.floor(progressRatio * peaks.length);
+  for (let x = 0; x < peaks.length; x++) {
+    const [min, max] = peaks[x];
+    const y1 = WAVE_MID + min * WAVE_MID * 0.92;
+    const y2 = WAVE_MID + max * WAVE_MID * 0.92;
+    wctx.strokeStyle = x <= playedX ? WAVE_PLAYED : WAVE_UNPLAYED;
+    wctx.beginPath();
+    wctx.moveTo(x + 0.5, y1);
+    wctx.lineTo(x + 0.5, y2);
+    wctx.stroke();
+  }
+
+  wctx.strokeStyle = WAVE_PLAYED;
+  wctx.beginPath();
+  wctx.moveTo(playedX + 0.5, 0);
+  wctx.lineTo(playedX + 0.5, WAVE_H);
+  wctx.stroke();
+}
+
+async function decodeFileForWaveform(file) {
+  const buffer = await file.arrayBuffer();
+  const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const audioBuffer = await tempCtx.decodeAudioData(buffer);
+  const channel = audioBuffer.getChannelData(0);
+  const blockSize = Math.max(1, Math.floor(channel.length / WAVE_W));
+  const peaks = [];
+  for (let i = 0; i < WAVE_W; i++) {
+    const start = i * blockSize;
+    let min = 1.0, max = -1.0;
+    for (let j = 0; j < blockSize; j++) {
+      const v = channel[start + j];
+      if (v === undefined) break;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    if (min > max) { min = 0; max = 0; }
+    peaks.push([min, max]);
+  }
+  await tempCtx.close();
+  return peaks;
+}
+
+function tickFilePlayback(audioEl) {
+  if (!fileWaveformPeaks) return;
+  const ratio = audioEl.duration ? audioEl.currentTime / audioEl.duration : 0;
+  drawStaticWaveform(fileWaveformPeaks, ratio);
+  filePlaybackRAF = requestAnimationFrame(() => tickFilePlayback(audioEl));
+}
+
+function attachAudioElListenersOnce() {
+  if (audioElListenersAttached) return;
+  const audioEl = $("#player-host audio");
+  if (!audioEl) return;
+  audioElListenersAttached = true;
+  audioEl.addEventListener("play", () => {
+    cancelAnimationFrame(filePlaybackRAF);
+    tickFilePlayback(audioEl);
+  });
+  audioEl.addEventListener("pause", () => cancelAnimationFrame(filePlaybackRAF));
+  audioEl.addEventListener("ended", () => {
+    cancelAnimationFrame(filePlaybackRAF);
+    if (fileWaveformPeaks) drawStaticWaveform(fileWaveformPeaks, 0);
+  });
+  audioEl.addEventListener("timeupdate", () => {
+    if (audioEl.paused && fileWaveformPeaks) {
+      const ratio = audioEl.duration ? audioEl.currentTime / audioEl.duration : 0;
+      drawStaticWaveform(fileWaveformPeaks, ratio);
+    }
+  });
+}
+
+async function loadWaveformForFile(file) {
+  scopeModeLabel.textContent = "Analisando…";
+  try {
+    fileWaveformPeaks = await decodeFileForWaveform(file);
+    drawStaticWaveform(fileWaveformPeaks, 0);
+    attachAudioElListenersOnce();
+    scopeModeLabel.textContent = "Arquivo";
+  } catch (err) {
+    scopeModeLabel.textContent = "Sem prévia";
+    log("Não foi possível gerar a forma de onda: " + err.message);
+  }
+}
+
+function tickMicScope() {
+  if (!micAnalyser) return;
+  const buf = new Uint8Array(micAnalyser.fftSize);
+  micAnalyser.getByteTimeDomainData(buf);
+  wctx.clearRect(0, 0, WAVE_W, WAVE_H);
+  wctx.strokeStyle = "rgba(255,255,255,0.08)";
+  wctx.beginPath(); wctx.moveTo(0, WAVE_MID); wctx.lineTo(WAVE_W, WAVE_MID); wctx.stroke();
+  wctx.strokeStyle = WAVE_LIVE;
+  wctx.lineWidth = 1.4;
+  wctx.beginPath();
+  const step = WAVE_W / buf.length;
+  for (let i = 0; i < buf.length; i++) {
+    const v = buf[i] / 128.0 - 1.0;
+    const x = i * step;
+    const y = WAVE_MID + v * WAVE_MID * 0.92;
+    if (i === 0) wctx.moveTo(x, y); else wctx.lineTo(x, y);
+  }
+  wctx.stroke();
+  wctx.lineWidth = 1;
+  micRAF = requestAnimationFrame(tickMicScope);
+}
+
+async function startMicScope() {
+  try {
+    micWaveCtx = new (window.AudioContext || window.webkitAudioContext)();
+    micWaveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const source = micWaveCtx.createMediaStreamSource(micWaveStream);
+    micAnalyser = micWaveCtx.createAnalyser();
+    micAnalyser.fftSize = 1024;
+    source.connect(micAnalyser);
+    scopeModeLabel.textContent = "Microfone (ao vivo)";
+    tickMicScope();
+  } catch (err) {
+    scopeModeLabel.textContent = "Sem prévia";
+    log("Visualizador do microfone indisponível: " + err.message);
+  }
+}
+
+function stopMicScope() {
+  cancelAnimationFrame(micRAF);
+  micRAF = null;
+  micAnalyser = null;
+  if (micWaveStream) micWaveStream.getTracks().forEach((t) => t.stop());
+  if (micWaveCtx) micWaveCtx.close();
+  micWaveStream = null;
+  micWaveCtx = null;
+  if (fileWaveformPeaks) {
+    drawStaticWaveform(fileWaveformPeaks, 0);
+    scopeModeLabel.textContent = "Arquivo";
+  } else {
+    drawEmptyWave("Aguardando áudio…");
+    scopeModeLabel.textContent = "Aguardando";
+  }
+}
+
+drawEmptyWave("Aguardando áudio…");
+
+// ---------- source: file & microphone ----------
+$("#file-input").addEventListener("change", async (e) => {
+  const [file] = e.target.files || [];
+  if (!file || !player) return;
+  stopMicScope();
+  await player.loadFile(file);
+  log(`Arquivo carregado: ${file.name}`);
+  loadWaveformForFile(file);
+});
+
+let micOn = false;
+$("#mic-toggle").addEventListener("click", async () => {
+  if (!player) return;
+  if (!micOn) {
+    await player.useMicrophone();
+    micOn = true;
+    $("#mic-toggle").classList.add("is-active");
+    $("#mic-toggle").textContent = "Microfone: Ativo";
+    log("Microfone ativado.");
+    startMicScope();
+  } else {
+    player.stopMicrophone();
+    micOn = false;
+    $("#mic-toggle").classList.remove("is-active");
+    $("#mic-toggle").textContent = "Usar Microfone";
+    log("Microfone desativado.");
+    stopMicScope();
+  }
+});
+
+// ---------- init ----------
+PRESETS.flat.apply();
+updateChain();
+document.querySelector('[data-preset="flat"]')?.classList.add("is-active");
+log("Console pronto. Carregue um arquivo ou ative o microfone.");
+</script>
+</body>
+</html>
