@@ -178,6 +178,15 @@
   .mic-btn:hover{border-color:var(--teal);}
   .mic-btn.is-active{border-color:var(--teal); color:var(--teal); background:rgba(79,184,172,.08);}
 
+  .export-box{margin-top:10px;}
+  .export-hint{
+    margin:6px 0 0;
+    font-size:10.5px;
+    line-height:1.5;
+    color:var(--text-faint);
+  }
+  .export-hint strong{color:var(--text-dim); font-weight:600;}
+
   #player-host{margin-top:14px;}
   #player-host audio{width:100%; height:34px;}
 
@@ -310,6 +319,80 @@
   @media (max-width:560px){ .module-body{grid-template-columns:1fr;} }
   .module-body.single{grid-template-columns:1fr;}
 
+  .add-btn{
+    width:26px; height:26px; border-radius:50%;
+    border:1px solid var(--brass);
+    background:transparent;
+    color:var(--brass-bright);
+    font-size:16px; line-height:1;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .15s, color .15s;
+    flex:0 0 auto;
+  }
+  .add-btn:hover{background:var(--brass); color:#1a1305;}
+
+  .instance-list{display:flex; flex-direction:column; gap:10px;}
+  .instance-empty{
+    font-family:"IBM Plex Mono", monospace;
+    font-size:11px;
+    color:var(--text-faint);
+    padding:10px 2px;
+  }
+  .instance-row{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr auto;
+    gap:10px;
+    align-items:end;
+    background:#14171b;
+    border:1px solid var(--line-soft);
+    border-radius:7px;
+    padding:10px 10px 10px 12px;
+  }
+  .instance-row.fields-1{grid-template-columns:1fr 1fr auto;}
+  @media (max-width:640px){
+    .instance-row, .instance-row.fields-1{grid-template-columns:1fr;}
+    .instance-row .instance-remove{justify-self:end;}
+  }
+  .instance-row select{font-size:11.5px; padding:6px 7px;}
+  .instance-row .field label{font-size:10.5px; margin-bottom:5px;}
+  .instance-remove{
+    width:22px; height:22px; border-radius:50%;
+    border:1px solid var(--line);
+    background:transparent;
+    color:var(--text-faint);
+    font-size:13px; line-height:1;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition:border-color .15s, color .15s;
+    flex:0 0 auto;
+  }
+  .instance-remove:hover{border-color:var(--red); color:var(--red);}
+  .module-extra{margin-top:14px; padding-top:14px; border-top:1px solid var(--line-soft);}
+
+  body.obs-mode{background:transparent !important; padding:0;}
+  body.obs-mode .head,
+  body.obs-mode .chain,
+  body.obs-mode .rack,
+  body.obs-mode footer,
+  body.obs-mode .obs-note{display:none !important;}
+
+  .obs-note{
+    margin-top:10px;
+    font-size:11px;
+    line-height:1.7;
+    color:var(--text-faint);
+  }
+  .obs-note strong{color:var(--text-dim); font-weight:600;}
+  .obs-note code{
+    background:#0f1114;
+    border:1px solid var(--line-soft);
+    border-radius:4px;
+    padding:1px 5px;
+    color:var(--brass-bright);
+    font-family:"IBM Plex Mono", monospace;
+  }
+
   .field label{
     display:flex; justify-content:space-between; align-items:baseline;
     font-size:12px; color:var(--text-dim); margin-bottom:6px;
@@ -363,6 +446,11 @@
 </style>
 </head>
 <body>
+<script>
+  if (new URLSearchParams(location.search).get("obs") === "1") {
+    document.body.classList.add("obs-mode");
+  }
+</script>
 <div class="wrap">
 
   <div class="head">
@@ -400,6 +488,14 @@
         <label class="file-btn" for="file-input">Carregar áudio…</label>
         <input id="file-input" type="file" accept="audio/*">
         <button class="mic-btn" id="mic-toggle" type="button">Usar Microfone</button>
+        <div class="export-box">
+          <button class="mic-btn" id="record-toggle" type="button">Baixar Áudio Processado (.wav)</button>
+          <p class="export-hint">Renderiza offline no seu navegador, com a cadeia de efeitos atual aplicada, e baixa um <strong>.wav</strong> — sem gravação de tela, sem permissões extras. Funciona apenas com um arquivo carregado (não com o microfone ao vivo).</p>
+        </div>
+        <div class="export-box">
+          <button class="mic-btn" id="backup-toggle" type="button">Iniciar Backup Contínuo do Mic</button>
+          <p class="export-hint">Salva pedaços de ~30s automaticamente enquanto você fala, pra nunca perder a sessão se a aba travar. Grava o <strong>sinal original do microfone</strong> (sem os efeitos — pra isso, use o modo OBS acima). Exige o microfone ligado; o navegador pode pedir permissão pra baixar vários arquivos seguidos — autorize quando aparecer. <span id="backup-status"></span></p>
+        </div>
         <div id="player-host"></div>
         <div class="scope">
           <div class="scope-head">
@@ -429,6 +525,8 @@
           <button class="preset-btn" data-preset="metallic_ring">Metálico (Anel)</button>
           <button class="preset-btn" data-preset="voice_high">Voz Aguda</button>
           <button class="preset-btn" data-preset="harmony">Harmonia</button>
+          <button class="preset-btn" data-preset="stacked_space">Espaço Duplo</button>
+          <button class="preset-btn" data-preset="stacked_mod">Modulação Dupla</button>
         </div>
       </div>
 
@@ -464,28 +562,9 @@
       <div class="module">
         <div class="module-head">
           <h3>Voz / Formante<small>Afinação, formante, autotune, harmonia, oitava</small></h3>
-          <label class="switch"><input id="toggle-voice" type="checkbox"><span class="track"></span></label>
+          <button class="add-btn" id="voice-add" type="button" title="Adicionar bloco">+</button>
         </div>
-        <div class="module-body">
-          <div class="field">
-            <label>Tipo</label>
-            <select id="voice-type">
-              <option value="pitch_shift" selected>Afinação (Pitch Shift)</option>
-              <option value="formant_shifting">Formante</option>
-              <option value="auto_tune">Autotune</option>
-              <option value="harmonizer">Harmonizador</option>
-              <option value="octaver">Oitavador</option>
-            </select>
-          </div>
-          <div class="field">
-            <label><span id="voice-semi-label">Semitons</span> <span class="readout" id="voice-semi-out">0 st</span></label>
-            <input id="voice-semi" type="range" min="-12" max="12" step="1" value="0">
-          </div>
-          <div class="field">
-            <label><span id="voice-mix-label">Mistura</span> <span class="readout" id="voice-mix-out">100%</span></label>
-            <input id="voice-mix" type="range" min="0" max="1" step="0.01" value="1">
-          </div>
-        </div>
+        <div class="instance-list" id="voice-list"></div>
       </div>
 
       <div class="module">
@@ -532,97 +611,30 @@
 
       <div class="module">
         <div class="module-head">
-          <h3>Espaço<small>Reverb ou delay — vários tipos</small></h3>
-          <label class="switch"><input id="toggle-space" type="checkbox"><span class="track"></span></label>
+          <h3>Espaço<small>Reverb ou delay — empilhe vários em série</small></h3>
+          <button class="add-btn" id="space-add" type="button" title="Adicionar bloco">+</button>
         </div>
-        <div class="module-body">
-          <div class="field">
-            <label>Tipo</label>
-            <select id="space-type">
-              <option value="room">Reverb — Sala</option>
-              <option value="hall" selected>Reverb — Hall</option>
-              <option value="plate">Reverb — Placa</option>
-              <option value="delay">Delay</option>
-              <option value="ping_pong">Delay Ping-Pong</option>
-              <option value="slapback">Slapback</option>
-              <option value="echo">Eco</option>
-            </select>
-          </div>
-          <div class="field">
-            <label><span id="space-decay-label">Decaimento</span> <span class="readout" id="space-decay-out">1.8 s</span></label>
-            <input id="space-decay" type="range" min="0.2" max="5" step="0.1" value="1.8">
-          </div>
-          <div class="field">
-            <label>Mistura / Feedback <span class="readout" id="space-mix-out">28%</span></label>
-            <input id="space-mix" type="range" min="0" max="1" step="0.01" value="0.28">
-          </div>
+        <div class="instance-list" id="space-list"></div>
+      </div>
+
+      <div class="module">
+        <div class="module-head">
+          <h3>Modulação<small>Chorus, flanger, phaser — empilhe efeitos</small></h3>
+          <button class="add-btn" id="mod-add" type="button" title="Adicionar bloco">+</button>
+        </div>
+        <div class="instance-list" id="mod-list"></div>
+        <div class="field module-extra">
+          <label>Largura Estéreo <span class="readout" id="mod-width-out">1.00x</span></label>
+          <input id="mod-width" type="range" min="1" max="2.5" step="0.05" value="1">
         </div>
       </div>
 
       <div class="module">
         <div class="module-head">
-          <h3>Modulação<small>Chorus, flanger, phaser e mais</small></h3>
-          <label class="switch"><input id="toggle-mod" type="checkbox"><span class="track"></span></label>
+          <h3>Cor / Textura<small>Caráter criativo — empilhe quantos quiser</small></h3>
+          <button class="add-btn" id="color-add" type="button" title="Adicionar bloco">+</button>
         </div>
-        <div class="module-body">
-          <div class="field">
-            <label>Tipo</label>
-            <select id="mod-type">
-              <option value="chorus" selected>Chorus</option>
-              <option value="flanger">Flanger</option>
-              <option value="phaser">Phaser</option>
-              <option value="tremolo">Tremolo</option>
-              <option value="vibrato">Vibrato</option>
-              <option value="rotary_speaker">Alto-falante Rotativo</option>
-              <option value="auto_pan">Auto-Pan</option>
-              <option value="ring_modulation">Modulação em Anel</option>
-            </select>
-          </div>
-          <div class="field">
-            <label><span id="mod-rate-label">Velocidade</span> <span class="readout" id="mod-rate-out">0.90 Hz</span></label>
-            <input id="mod-rate" type="range" min="0.05" max="8" step="0.05" value="0.9">
-          </div>
-          <div class="field">
-            <label><span id="mod-mix-label">Profundidade / Mistura</span> <span class="readout" id="mod-mix-out">35%</span></label>
-            <input id="mod-mix" type="range" min="0" max="1" step="0.01" value="0.35">
-          </div>
-          <div class="field">
-            <label>Largura Estéreo <span class="readout" id="mod-width-out">1.00x</span></label>
-            <input id="mod-width" type="range" min="1" max="2.5" step="0.05" value="1">
-          </div>
-        </div>
-      </div>
-
-      <div class="module">
-        <div class="module-head">
-          <h3>Cor / Textura<small>Caráter criativo — um efeito por vez</small></h3>
-          <label class="switch"><input id="toggle-color" type="checkbox"><span class="track"></span></label>
-        </div>
-        <div class="module-body">
-          <div class="field">
-            <label>Tipo</label>
-            <select id="color-type">
-              <option value="none">Nenhum</option>
-              <option value="radio">Rádio AM</option>
-              <option value="telephone">Telefone</option>
-              <option value="robot">Robô</option>
-              <option value="alien">Alienígena</option>
-              <option value="vinyl">Vinil</option>
-              <option value="tape">Saturação de Fita</option>
-              <option value="bitcrusher">Bitcrusher</option>
-              <option value="distortion">Distorção</option>
-              <option value="frequency_shifter">Deslocador de Frequência</option>
-              <option value="glitch">Glitch</option>
-              <option value="stutter">Gagueira (Stutter)</option>
-              <option value="granular">Síntese Granular</option>
-              <option value="lofi">Lo-fi (combo)</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Intensidade <span class="readout" id="color-amount-out">50%</span></label>
-            <input id="color-amount" type="range" min="0" max="1" step="0.01" value="0.5">
-          </div>
-        </div>
+        <div class="instance-list" id="color-list"></div>
       </div>
 
     </div>
@@ -632,7 +644,14 @@
     Motor de áudio: <a href="https://voxis.org" target="_blank" rel="noopener">Voxis</a> — biblioteca open-source de DSP (Python + JavaScript + C++/WASM), API realtime servida via <a href="https://voxis.org/api/" target="_blank" rel="noopener">voxis.org/api</a>. · Os presets acima são cadeias de efeito construídas com o builder <code>effects.*</code> da Voxis, inspiradas nos presets nativos do pacote.
   </footer>
 
+  <p class="obs-note">
+    <strong>Usar ao vivo numa live (OBS):</strong> Fontes → + → <strong>Fonte de Navegador</strong> → aponte a URL pra este arquivo (hospedado ou <code>file://</code>) →
+    marque <strong>"Controlar áudio via OBS"</strong> pra rotear o som pelo mixer de áudio do OBS → adicione <code>?obs=1</code> no fim da URL pra abrir uma versão sem interface visual (só o áudio roda, útil pra deixar como uma fonte invisível na cena).
+    O áudio continua sendo processado normalmente mesmo com a interface escondida.
+  </p>
+
 </div>
+
 
 <script type="module">
 import { createLockedControl, createVoxisRealtimePlayer, effects }
@@ -672,51 +691,20 @@ function control(id, opts) {
 
 control("gain", { min: 0, max: 2, step: 0.01, format: (v) => `${v.toFixed(2)}x` });
 control("noise-strength", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
-control("voice-semi", { min: -12, max: 12, step: 1, format: (v) => `${v > 0 ? "+" : ""}${v} st` });
-control("voice-mix", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
 control("comp-threshold", { min: -48, max: -1, step: 0.5, format: (v) => `${v.toFixed(1)} dB` });
 control("comp-ratio", { min: 1, max: 12, step: 0.1, format: (v) => `${v.toFixed(1)}:1` });
 control("comp-makeup", { min: 0, max: 12, step: 0.1, format: (v) => `+${v.toFixed(1)} dB` });
 control("deesser-amount", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
 control("eq-low", { min: -12, max: 12, step: 0.1, format: (v) => `${v > 0 ? "+" : ""}${v.toFixed(1)} dB` });
 control("eq-high", { min: -12, max: 12, step: 0.1, format: (v) => `${v > 0 ? "+" : ""}${v.toFixed(1)} dB` });
-control("space-decay", { min: 0.2, max: 5, step: 0.1, format: (v) => `${v.toFixed(1)} s` });
-control("space-mix", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
-control("mod-mix", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
-control("mod-rate", { min: 0.05, max: 6, step: 0.05, format: (v) => `${v.toFixed(2)} Hz` });
 control("mod-width", { min: 1, max: 2.5, step: 0.05, format: (v) => `${v.toFixed(2)}x` });
-control("color-amount", { min: 0, max: 1, step: 0.01, format: (v) => `${Math.round(v * 100)}%` });
 
 const toggles = {};
-["noise", "voice", "dynamics", "eq", "space", "mod", "color"].forEach((key) => {
+["noise", "dynamics", "eq"].forEach((key) => {
   const el = $(`#toggle-${key}`);
   toggles[key] = el;
   el.addEventListener("change", updateChain);
 });
-
-const spaceType = $("#space-type");
-spaceType.addEventListener("change", () => { updateSpaceLabel(); updateChain(); });
-const colorType = $("#color-type");
-colorType.addEventListener("change", updateChain);
-const modType = $("#mod-type");
-modType.addEventListener("change", () => { updateModLabels(); updateChain(); });
-const voiceType = $("#voice-type");
-voiceType.addEventListener("change", () => { updateVoiceLabels(); updateChain(); });
-
-function updateVoiceLabels() {
-  const labels = VOICE_LABELS[voiceType.value] || VOICE_LABELS.pitch_shift;
-  $("#voice-semi-label").textContent = labels.semi;
-  $("#voice-mix-label").textContent = labels.mix;
-}
-
-function updateSpaceLabel() {
-  $("#space-decay-label").textContent = SPACE_LABELS[spaceType.value] || "Decaimento";
-}
-function updateModLabels() {
-  const labels = MOD_LABELS[modType.value] || MOD_LABELS.chorus;
-  $("#mod-rate-label").textContent = labels.rate;
-  $("#mod-mix-label").textContent = labels.amount;
-}
 
 // ---------- effect builders ----------
 const VOICE_BUILDERS = {
@@ -798,6 +786,195 @@ const COLOR_BUILDERS = {
   ],
 };
 
+// ---------- stackable instance modules (Voz, Espaço, Modulação, Cor) ----------
+let uidCounter = 0;
+const uid = () => `inst-${uidCounter++}`;
+
+const groupStates = { voice: [], space: [], mod: [], color: [] };
+
+const GROUP_DEFS = {
+  voice: {
+    listEl: $("#voice-list"), addEl: $("#voice-add"),
+    defaultType: "pitch_shift",
+    types: [
+      { value: "pitch_shift", label: "Afinação (Pitch Shift)" },
+      { value: "formant_shifting", label: "Formante" },
+      { value: "auto_tune", label: "Autotune" },
+      { value: "harmonizer", label: "Harmonizador" },
+      { value: "octaver", label: "Oitavador" },
+    ],
+    fields: [
+      { min: -12, max: 12, step: 1, default: 0, labelFor: (t) => (VOICE_LABELS[t] || VOICE_LABELS.pitch_shift).semi, format: (v) => `${v > 0 ? "+" : ""}${v} st` },
+      { min: 0, max: 1, step: 0.01, default: 1, labelFor: (t) => (VOICE_LABELS[t] || VOICE_LABELS.pitch_shift).mix, format: (v) => `${Math.round(v * 100)}%` },
+    ],
+    build: (type, f1, f2) => (VOICE_BUILDERS[type] || VOICE_BUILDERS.pitch_shift)(f1, f2),
+  },
+  space: {
+    listEl: $("#space-list"), addEl: $("#space-add"),
+    defaultType: "hall",
+    types: [
+      { value: "room", label: "Reverb — Sala" },
+      { value: "hall", label: "Reverb — Hall" },
+      { value: "plate", label: "Reverb — Placa" },
+      { value: "delay", label: "Delay" },
+      { value: "ping_pong", label: "Delay Ping-Pong" },
+      { value: "slapback", label: "Slapback" },
+      { value: "echo", label: "Eco" },
+    ],
+    fields: [
+      { min: 0.2, max: 5, step: 0.1, default: 1.8, labelFor: (t) => SPACE_LABELS[t] || "Decaimento", format: (v) => `${v.toFixed(1)} s` },
+      { min: 0, max: 1, step: 0.01, default: 0.28, labelFor: () => "Mistura / Feedback", format: (v) => `${Math.round(v * 100)}%` },
+    ],
+    build: (type, f1, f2) => [(SPACE_BUILDERS[type] || SPACE_BUILDERS.room)(f1, f2)],
+  },
+  mod: {
+    listEl: $("#mod-list"), addEl: $("#mod-add"),
+    defaultType: "chorus",
+    types: [
+      { value: "chorus", label: "Chorus" },
+      { value: "flanger", label: "Flanger" },
+      { value: "phaser", label: "Phaser" },
+      { value: "tremolo", label: "Tremolo" },
+      { value: "vibrato", label: "Vibrato" },
+      { value: "rotary_speaker", label: "Alto-falante Rotativo" },
+      { value: "auto_pan", label: "Auto-Pan" },
+      { value: "ring_modulation", label: "Modulação em Anel" },
+    ],
+    fields: [
+      { min: 0.05, max: 8, step: 0.05, default: 0.9, labelFor: (t) => (MOD_LABELS[t] || MOD_LABELS.chorus).rate, format: (v) => `${v.toFixed(2)} Hz` },
+      { min: 0, max: 1, step: 0.01, default: 0.35, labelFor: (t) => (MOD_LABELS[t] || MOD_LABELS.chorus).amount, format: (v) => `${Math.round(v * 100)}%` },
+    ],
+    build: (type, f1, f2) => [(MOD_BUILDERS[type] || MOD_BUILDERS.chorus)(f1, f2)],
+  },
+  color: {
+    listEl: $("#color-list"), addEl: $("#color-add"),
+    defaultType: "tape",
+    types: [
+      { value: "radio", label: "Rádio AM" },
+      { value: "telephone", label: "Telefone" },
+      { value: "robot", label: "Robô" },
+      { value: "alien", label: "Alienígena" },
+      { value: "vinyl", label: "Vinil" },
+      { value: "tape", label: "Saturação de Fita" },
+      { value: "bitcrusher", label: "Bitcrusher" },
+      { value: "distortion", label: "Distorção" },
+      { value: "frequency_shifter", label: "Deslocador de Frequência" },
+      { value: "glitch", label: "Glitch" },
+      { value: "stutter", label: "Gagueira (Stutter)" },
+      { value: "granular", label: "Síntese Granular" },
+      { value: "lofi", label: "Lo-fi (combo)" },
+    ],
+    fields: [
+      { min: 0, max: 1, step: 0.01, default: 0.5, labelFor: () => "Intensidade", format: (v) => `${Math.round(v * 100)}%` },
+    ],
+    build: (type, f1) => (COLOR_BUILDERS[type] || COLOR_BUILDERS.none)(f1),
+  },
+};
+
+function renderGroup(key) {
+  const def = GROUP_DEFS[key];
+  const list = def.listEl;
+  list.innerHTML = "";
+  const arr = groupStates[key];
+
+  if (arr.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "instance-empty";
+    empty.textContent = "Nenhum efeito neste bloco — clique em + para adicionar.";
+    list.appendChild(empty);
+    return;
+  }
+
+  arr.forEach((inst, idx) => {
+    const row = document.createElement("div");
+    row.className = "instance-row" + (def.fields.length === 1 ? " fields-1" : "");
+
+    const selWrap = document.createElement("div");
+    selWrap.className = "field";
+    const selLabel = document.createElement("label");
+    selLabel.textContent = "Tipo";
+    const sel = document.createElement("select");
+    def.types.forEach((t) => {
+      const opt = document.createElement("option");
+      opt.value = t.value;
+      opt.textContent = t.label;
+      if (t.value === inst.type) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener("change", () => {
+      inst.type = sel.value;
+      renderGroup(key);
+      updateChain();
+    });
+    selWrap.appendChild(selLabel);
+    selWrap.appendChild(sel);
+    row.appendChild(selWrap);
+
+    def.fields.forEach((f, fi) => {
+      const fieldKey = fi === 0 ? "f1" : "f2";
+      const wrap = document.createElement("div");
+      wrap.className = "field";
+      const label = document.createElement("label");
+      const labelText = document.createElement("span");
+      labelText.textContent = f.labelFor(inst.type);
+      const readout = document.createElement("span");
+      readout.className = "readout";
+      readout.textContent = f.format(inst[fieldKey]);
+      label.appendChild(labelText);
+      label.appendChild(document.createTextNode(" "));
+      label.appendChild(readout);
+      const input = document.createElement("input");
+      input.type = "range";
+      input.min = f.min; input.max = f.max; input.step = f.step;
+      input.value = inst[fieldKey];
+      input.addEventListener("input", () => {
+        inst[fieldKey] = parseFloat(input.value);
+        readout.textContent = f.format(inst[fieldKey]);
+        updateChain();
+      });
+      wrap.appendChild(label);
+      wrap.appendChild(input);
+      row.appendChild(wrap);
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "instance-remove";
+    removeBtn.title = "Remover este bloco";
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      groupStates[key].splice(idx, 1);
+      renderGroup(key);
+      updateChain();
+    });
+    row.appendChild(removeBtn);
+
+    list.appendChild(row);
+  });
+}
+
+function addInstance(key) {
+  const def = GROUP_DEFS[key];
+  groupStates[key].push({
+    id: uid(),
+    type: def.defaultType,
+    f1: def.fields[0]?.default ?? 0,
+    f2: def.fields[1]?.default ?? 0,
+  });
+  renderGroup(key);
+  updateChain();
+}
+
+function setGroupInstances(key, list) {
+  groupStates[key] = list.map((item) => ({ id: uid(), type: item.type, f1: item.f1 ?? 0, f2: item.f2 ?? 0 }));
+  renderGroup(key);
+}
+
+Object.keys(GROUP_DEFS).forEach((key) => {
+  GROUP_DEFS[key].addEl.addEventListener("click", () => addInstance(key));
+  renderGroup(key);
+});
+
 function buildChain() {
   const chain = [effects.gain({ value: controls.gain.read(), limits: { min: 0, max: 2 } })];
   const active = { noise: false, voice: false, dynamics: false, eq: false, space: false, mod: false, color: false };
@@ -807,10 +984,9 @@ function buildChain() {
     chain.push(effects.noise_reduction({ strength: controls["noise-strength"].read() }));
   }
 
-  if (toggles.voice.checked) {
+  if (groupStates.voice.length) {
     active.voice = true;
-    const builder = VOICE_BUILDERS[voiceType.value] || VOICE_BUILDERS.pitch_shift;
-    chain.push(...builder(controls["voice-semi"].read(), controls["voice-mix"].read()));
+    groupStates.voice.forEach((inst) => chain.push(...GROUP_DEFS.voice.build(inst.type, inst.f1, inst.f2)));
   }
 
   if (toggles.dynamics.checked) {
@@ -831,38 +1007,32 @@ function buildChain() {
     chain.push(effects.high_shelf({ frequencyHz: 8500, gainDb: controls["eq-high"].read() }));
   }
 
-  if (toggles.space.checked) {
+  if (groupStates.space.length) {
     active.space = true;
-    const builder = SPACE_BUILDERS[spaceType.value] || SPACE_BUILDERS.room;
-    chain.push(builder(controls["space-decay"].read(), controls["space-mix"].read()));
+    groupStates.space.forEach((inst) => chain.push(...GROUP_DEFS.space.build(inst.type, inst.f1, inst.f2)));
   }
 
-  if (toggles.mod.checked) {
+  if (groupStates.mod.length) {
     active.mod = true;
-    const modBuilder = MOD_BUILDERS[modType.value] || MOD_BUILDERS.chorus;
-    chain.push(modBuilder(controls["mod-rate"].read(), controls["mod-mix"].read()));
+    groupStates.mod.forEach((inst) => chain.push(...GROUP_DEFS.mod.build(inst.type, inst.f1, inst.f2)));
     chain.push(effects.stereo_width({ width: controls["mod-width"].read() }));
   }
 
-  if (toggles.color.checked) {
+  if (groupStates.color.length) {
     active.color = true;
-    const amt = controls["color-amount"].read();
-    const builder = COLOR_BUILDERS[colorType.value] || COLOR_BUILDERS.none;
-    chain.push(...builder(amt));
+    groupStates.color.forEach((inst) => chain.push(...GROUP_DEFS.color.build(inst.type, inst.f1, inst.f2)));
   }
 
   return { chain, active };
 }
 
 function updateChain() {
-  updateSpaceLabel();
-  updateModLabels();
-  updateVoiceLabels();
   if (!player) return;
   const { chain, active } = buildChain();
   player.setEffects(chain);
   Object.entries(active).forEach(([key, on]) => stageEls[key]?.classList.toggle("active", on));
 }
+
 
 function setControl(id, value) {
   const c = controls[id];
@@ -878,102 +1048,129 @@ function setToggle(key, on) {
 const PRESETS = {
   flat: { label: "Padrão", apply() {
     setControl("gain", 1);
-    ["noise", "voice", "dynamics", "eq", "space", "mod", "color"].forEach((k) => setToggle(k, false));
-    spaceType.value = "hall"; modType.value = "chorus"; colorType.value = "none"; voiceType.value = "pitch_shift";
-    setControl("voice-semi", 0); setControl("voice-mix", 1);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setControl("mod-width", 1);
+    setGroupInstances("voice", []);
+    setGroupInstances("space", []);
+    setGroupInstances("mod", []);
+    setGroupInstances("color", []);
   }},
   vocal_enhance: { label: "Voz Realçada", apply() {
     setControl("gain", 1.05);
     setToggle("noise", true); setControl("noise-strength", 0.55);
-    setToggle("voice", false);
     setToggle("dynamics", true);
     setControl("comp-threshold", -20); setControl("comp-ratio", 3.2); setControl("comp-makeup", 1.8);
     setControl("deesser-amount", 0.45);
     setToggle("eq", true); setControl("eq-low", -1.5); setControl("eq-high", 2.5);
-    setToggle("space", false); setToggle("mod", false); setToggle("color", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []); setGroupInstances("mod", []); setGroupInstances("color", []);
   }},
   podcast_clean: { label: "Podcast Limpo", apply() {
     setControl("gain", 1.0);
     setToggle("noise", true); setControl("noise-strength", 0.6);
-    setToggle("voice", false);
     setToggle("dynamics", true);
     setControl("comp-threshold", -20); setControl("comp-ratio", 3.5); setControl("comp-makeup", 1.5);
     setControl("deesser-amount", 0.5);
     setToggle("eq", true); setControl("eq-low", -1.0); setControl("eq-high", 1.0);
-    setToggle("space", false); setToggle("mod", false); setToggle("color", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []); setGroupInstances("mod", []); setGroupInstances("color", []);
   }},
   cinematic: { label: "Cinemático", apply() {
     setControl("gain", 1.0);
-    setToggle("noise", false); setToggle("voice", false);
+    setToggle("noise", false);
     setToggle("dynamics", true);
     setControl("comp-threshold", -18); setControl("comp-ratio", 2.5); setControl("comp-makeup", 1.0);
     setControl("deesser-amount", 0);
     setToggle("eq", true); setControl("eq-low", 1.0); setControl("eq-high", 1.0);
-    setToggle("space", true); spaceType.value = "hall"; setControl("space-decay", 2.5); setControl("space-mix", 0.32);
-    setToggle("mod", false);
-    setToggle("color", true); colorType.value = "tape"; setControl("color-amount", 0.3);
+    setGroupInstances("voice", []);
+    setGroupInstances("space", [{ type: "hall", f1: 2.5, f2: 0.32 }]);
+    setGroupInstances("mod", []); setControl("mod-width", 1);
+    setGroupInstances("color", [{ type: "tape", f1: 0.3 }]);
   }},
   radio: { label: "Rádio AM", apply() {
     setControl("gain", 1.0);
-    ["noise", "voice", "dynamics", "eq", "space", "mod"].forEach((k) => setToggle(k, false));
-    setToggle("color", true); colorType.value = "radio"; setControl("color-amount", 0.75);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []); setGroupInstances("mod", []);
+    setGroupInstances("color", [{ type: "radio", f1: 0.75 }]);
   }},
   lofi: { label: "Lo-fi", apply() {
     setControl("gain", 1.0);
-    ["noise", "voice", "dynamics", "eq", "space", "mod"].forEach((k) => setToggle(k, false));
-    setToggle("color", true); colorType.value = "lofi"; setControl("color-amount", 0.55);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []); setGroupInstances("mod", []);
+    setGroupInstances("color", [{ type: "lofi", f1: 0.55 }]);
   }},
   wide_chorus: { label: "Coro Amplo", apply() {
     setControl("gain", 1.0);
-    ["noise", "voice", "dynamics", "eq", "space"].forEach((k) => setToggle(k, false));
-    setToggle("mod", true); modType.value = "chorus";
-    setControl("mod-mix", 0.55); setControl("mod-rate", 1.1); setControl("mod-width", 1.7);
-    setToggle("color", false);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []);
+    setGroupInstances("mod", [{ type: "chorus", f1: 1.1, f2: 0.55 }]); setControl("mod-width", 1.7);
+    setGroupInstances("color", []);
   }},
   clarity_eq: { label: "Clareza", apply() {
     setControl("gain", 1.0);
-    setToggle("noise", false); setToggle("voice", false); setToggle("dynamics", false);
+    setToggle("noise", false); setToggle("dynamics", false);
     setToggle("eq", true); setControl("eq-low", 0); setControl("eq-high", 3.5);
-    setToggle("space", false); setToggle("mod", false); setToggle("color", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []); setGroupInstances("mod", []); setGroupInstances("color", []);
   }},
   telephone: { label: "Telefone", apply() {
     setControl("gain", 1.0);
-    ["noise", "voice", "dynamics", "eq", "space", "mod"].forEach((k) => setToggle(k, false));
-    setToggle("color", true); colorType.value = "telephone"; setControl("color-amount", 0.5);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []); setGroupInstances("mod", []);
+    setGroupInstances("color", [{ type: "telephone", f1: 0.5 }]);
   }},
   robot: { label: "Robô", apply() {
     setControl("gain", 1.0);
-    ["noise", "voice", "dynamics", "eq", "space", "mod"].forEach((k) => setToggle(k, false));
-    setToggle("color", true); colorType.value = "robot"; setControl("color-amount", 0.5);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []); setGroupInstances("mod", []);
+    setGroupInstances("color", [{ type: "robot", f1: 0.5 }]);
   }},
   phaser_sweep: { label: "Textura Phaser", apply() {
     setControl("gain", 1.0);
-    ["noise", "voice", "dynamics", "eq", "space"].forEach((k) => setToggle(k, false));
-    setToggle("mod", true); modType.value = "phaser";
-    setControl("mod-rate", 0.4); setControl("mod-mix", 0.7); setControl("mod-width", 1.3);
-    setToggle("color", false);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []);
+    setGroupInstances("mod", [{ type: "phaser", f1: 0.4, f2: 0.7 }]); setControl("mod-width", 1.3);
+    setGroupInstances("color", []);
   }},
   metallic_ring: { label: "Metálico (Anel)", apply() {
     setControl("gain", 1.0);
-    ["noise", "voice", "eq", "space"].forEach((k) => setToggle(k, false));
+    setToggle("noise", false); setToggle("eq", false);
     setToggle("dynamics", true);
     setControl("comp-threshold", -22); setControl("comp-ratio", 3.0); setControl("comp-makeup", 1.0);
     setControl("deesser-amount", 0);
-    setToggle("mod", true); modType.value = "ring_modulation";
-    setControl("mod-rate", 0.6); setControl("mod-mix", 0.55); setControl("mod-width", 1.0);
-    setToggle("color", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []);
+    setGroupInstances("mod", [{ type: "ring_modulation", f1: 0.6, f2: 0.55 }]); setControl("mod-width", 1.0);
+    setGroupInstances("color", []);
   }},
   voice_high: { label: "Voz Aguda", apply() {
     setControl("gain", 1.0);
-    ["noise", "dynamics", "eq", "space", "mod", "color"].forEach((k) => setToggle(k, false));
-    setToggle("voice", true); voiceType.value = "pitch_shift";
-    setControl("voice-semi", 7); setControl("voice-mix", 1);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", [{ type: "pitch_shift", f1: 7, f2: 1 }]);
+    setGroupInstances("space", []); setGroupInstances("mod", []); setGroupInstances("color", []);
   }},
   harmony: { label: "Harmonia", apply() {
     setControl("gain", 1.0);
-    ["noise", "dynamics", "eq", "space", "mod", "color"].forEach((k) => setToggle(k, false));
-    setToggle("voice", true); voiceType.value = "harmonizer";
-    setControl("voice-semi", 4); setControl("voice-mix", 0.5);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", [{ type: "harmonizer", f1: 4, f2: 0.5 }]);
+    setGroupInstances("space", []); setGroupInstances("mod", []); setGroupInstances("color", []);
+  }},
+  stacked_space: { label: "Espaço Duplo", apply() {
+    setControl("gain", 1.0);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", []); setGroupInstances("mod", []); setControl("mod-width", 1);
+    setGroupInstances("space", [
+      { type: "hall", f1: 2.0, f2: 0.25 },
+      { type: "slapback", f1: 1.5, f2: 0.35 },
+    ]);
+    setGroupInstances("color", []);
+  }},
+  stacked_mod: { label: "Modulação Dupla", apply() {
+    setControl("gain", 1.0);
+    setToggle("noise", false); setToggle("dynamics", false); setToggle("eq", false);
+    setGroupInstances("voice", []); setGroupInstances("space", []);
+    setGroupInstances("mod", [
+      { type: "chorus", f1: 0.8, f2: 0.4 },
+      { type: "phaser", f1: 0.3, f2: 0.5 },
+    ]);
+    setControl("mod-width", 1.4);
+    setGroupInstances("color", []);
   }},
 };
 
@@ -1168,17 +1365,545 @@ function stopMicScope() {
 
 drawEmptyWave("Aguardando áudio…");
 
+// ---------- export: offline render with native Web Audio nodes ----------
+// The tab-capture approach (getDisplayMedia) turned out to be unreliable:
+// it needs a secure context (fails on file:// and inside sandboxed iframes),
+// needs the user to manually tick "share audio", and needs the download to
+// fire fast enough after an async callback to still count as a user gesture.
+// This version instead re-renders the file offline with an OfflineAudioContext,
+// approximating each active effect with native nodes. No permissions, no
+// network, works even opening the file directly from disk.
+let currentAudioFile = null;
+
+function dbToGain(db) { return Math.pow(10, db / 20); }
+
+function makeNoiseBuffer(ctx, seconds) {
+  const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+  const buf = ctx.createBuffer(1, length, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < length; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+function makeImpulseResponse(ctx, decaySeconds, type) {
+  const rate = ctx.sampleRate;
+  const length = Math.max(1, Math.floor(rate * decaySeconds));
+  const impulse = ctx.createBuffer(2, length, rate);
+  const decayPow = type === "plate" ? 1.4 : type === "room" ? 3.0 : 2.0;
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decayPow);
+    }
+  }
+  return impulse;
+}
+
+function makeDistortionCurve(amount) {
+  const n = 8192;
+  const curve = new Float32Array(n);
+  const k = amount * 50;
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = ((3 + k) * x * (20 * Math.PI / 180)) / (Math.PI + k * Math.abs(x));
+  }
+  return curve;
+}
+
+function mixSignals(a, b, ga, gb) {
+  const out = new Float32Array(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = a[i] * ga + (b[i] || 0) * gb;
+  return out;
+}
+
+// Simple granular time-domain pitch shifter (Hann-windowed overlap-add).
+// Reasonable for moderate shifts; not a substitute for a true phase vocoder.
+function granularPitchShift(data, sr, semitones, mix) {
+  if (!semitones) return data;
+  const ratio = Math.pow(2, semitones / 12);
+  const grainSize = Math.floor(sr * 0.05);
+  const hop = Math.floor(grainSize / 2);
+  const out = new Float32Array(data.length);
+  for (let pos = 0; pos + grainSize < data.length; pos += hop) {
+    for (let i = 0; i < grainSize; i++) {
+      const srcIndex = pos + i * ratio;
+      const idx0 = Math.floor(srcIndex);
+      if (idx0 + 1 >= data.length || pos + i >= out.length) continue;
+      const frac = srcIndex - idx0;
+      const sample = data[idx0] * (1 - frac) + data[idx0 + 1] * frac;
+      const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (grainSize - 1));
+      out[pos + i] += sample * w;
+    }
+  }
+  for (let i = 0; i < out.length; i++) out[i] *= 0.85;
+  if (mix >= 1) return out;
+  return mixSignals(data, out, 1 - mix, mix);
+}
+
+function bitcrushBuffer(data, amt) {
+  const bitDepth = Math.max(2, Math.round(16 - amt * 12));
+  const reduction = 1 + Math.round(amt * 6);
+  const levels = Math.pow(2, bitDepth);
+  const out = new Float32Array(data.length);
+  let held = 0;
+  for (let i = 0; i < data.length; i++) {
+    if (i % reduction === 0) held = Math.round(data[i] * levels) / levels;
+    out[i] = held;
+  }
+  return out;
+}
+
+function stutterBuffer(data, sr, amt) {
+  const repeats = 2 + Math.round(amt * 6);
+  const mix = 0.5 + amt * 0.5;
+  const sliceLen = Math.max(128, Math.floor(sr * 0.06));
+  const blockLen = sliceLen * repeats;
+  const out = new Float32Array(data.length);
+  for (let block = 0; block < data.length; block += blockLen) {
+    for (let off = 0; off < blockLen && block + off < data.length; off++) {
+      const srcIdx = block + (off % sliceLen);
+      out[block + off] = srcIdx < data.length ? data[srcIdx] : 0;
+    }
+  }
+  return mixSignals(data, out, 1 - mix, mix);
+}
+
+function granularBuffer(data, sr, amt) {
+  const grainLen = Math.max(256, Math.floor(sr * (0.03 + amt * 0.04)));
+  const mix = 0.3 + amt * 0.6;
+  const out = new Float32Array(data.length);
+  for (let pos = 0; pos < data.length; pos += grainLen) {
+    const jitter = Math.floor((Math.random() * 2 - 1) * grainLen * 2);
+    const srcStart = Math.max(0, pos + jitter);
+    for (let i = 0; i < grainLen && pos + i < data.length; i++) {
+      out[pos + i] = srcStart + i < data.length ? data[srcStart + i] : 0;
+    }
+  }
+  return mixSignals(data, out, 1 - mix, mix);
+}
+
+function applyVoiceBufferEffect(data, sr, inst) {
+  switch (inst.type) {
+    case "pitch_shift":
+    case "formant_shifting":
+      return granularPitchShift(data, sr, inst.f1, inst.f2);
+    case "octaver": {
+      const shifted = granularPitchShift(data, sr, inst.f1 >= 0 ? 12 : -12, 1);
+      return mixSignals(data, shifted, 1 - inst.f2, inst.f2);
+    }
+    case "harmonizer": {
+      const shifted = granularPitchShift(data, sr, inst.f1 === 0 ? 4 : inst.f1, 1);
+      return mixSignals(data, shifted, 1, inst.f2);
+    }
+    case "auto_tune":
+      log('Nota: "Autotune" é aproximado no export offline — sem detecção de pitch real, o bloco é ignorado no render.');
+      return data;
+    default:
+      return data;
+  }
+}
+
+function applyColorBufferEffect(data, sr, inst) {
+  const amt = inst.f1;
+  switch (inst.type) {
+    case "bitcrusher": return bitcrushBuffer(data, amt);
+    case "stutter": return stutterBuffer(data, sr, amt);
+    case "granular": return granularBuffer(data, sr, amt);
+    default: return data;
+  }
+}
+
+// Buffer-level pre-processing: voice pitch effects + sample-accurate color
+// effects (bitcrusher/stutter/granular) are easier to do directly on the
+// PCM data than as a Web Audio graph, so they run before the node graph.
+function applyBufferStage(buffer) {
+  const ops = [];
+  groupStates.voice.forEach((inst) => ops.push({ kind: "voice", inst }));
+  groupStates.color.forEach((inst) => {
+    if (["bitcrusher", "stutter", "granular"].includes(inst.type)) ops.push({ kind: "color", inst });
+  });
+  if (!ops.length) return buffer;
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    let data = buffer.getChannelData(ch);
+    ops.forEach((op) => {
+      data = op.kind === "voice"
+        ? applyVoiceBufferEffect(data, buffer.sampleRate, op.inst)
+        : applyColorBufferEffect(data, buffer.sampleRate, op.inst);
+    });
+    buffer.getChannelData(ch).set(data);
+  }
+  return buffer;
+}
+
+function applyOfflineSpace(ctx, input, inst) {
+  const out = ctx.createGain();
+  const dry = ctx.createGain(); dry.gain.value = 1 - inst.f2;
+  input.connect(dry); dry.connect(out);
+  const wet = ctx.createGain(); wet.gain.value = inst.f2;
+
+  if (["room", "hall", "plate"].includes(inst.type)) {
+    const convolver = ctx.createConvolver();
+    convolver.buffer = makeImpulseResponse(ctx, inst.f1, inst.type);
+    input.connect(convolver); convolver.connect(wet); wet.connect(out);
+  } else {
+    const delay = ctx.createDelay(2.0);
+    delay.delayTime.value = inst.type === "slapback" ? Math.max(0.03, inst.f1 * 0.06) : Math.min(1.9, inst.f1 * 0.25);
+    const feedback = ctx.createGain();
+    feedback.gain.value = inst.type === "slapback" ? 0 : Math.min(0.75, inst.f2 * (inst.type === "ping_pong" ? 0.8 : 0.7));
+    input.connect(delay);
+    delay.connect(feedback); feedback.connect(delay);
+    delay.connect(wet); wet.connect(out);
+  }
+  return out;
+}
+
+function applyOfflineMod(ctx, input, inst) {
+  const out = ctx.createGain();
+  switch (inst.type) {
+    case "tremolo": {
+      const g = ctx.createGain(); g.gain.value = 1 - inst.f2 * 0.5;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = inst.f1;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = inst.f2 * 0.5;
+      lfo.connect(lfoGain); lfoGain.connect(g.gain); lfo.start();
+      input.connect(g); g.connect(out);
+      break;
+    }
+    case "ring_modulation": {
+      const g = ctx.createGain(); g.gain.value = 0;
+      const osc = ctx.createOscillator(); osc.frequency.value = 50 + inst.f1 * 300;
+      osc.connect(g.gain); osc.start();
+      input.connect(g); g.connect(out);
+      const dry = ctx.createGain(); dry.gain.value = 1 - inst.f2;
+      input.connect(dry); dry.connect(out);
+      break;
+    }
+    case "auto_pan": {
+      const panner = ctx.createStereoPanner();
+      const lfo = ctx.createOscillator(); lfo.frequency.value = inst.f1;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = inst.f2;
+      lfo.connect(lfoGain); lfoGain.connect(panner.pan); lfo.start();
+      input.connect(panner); panner.connect(out);
+      break;
+    }
+    case "rotary_speaker": {
+      const g = ctx.createGain(); g.gain.value = 1 - inst.f2 * 0.3;
+      const lfoA = ctx.createOscillator(); lfoA.frequency.value = inst.f1;
+      const lfoAGain = ctx.createGain(); lfoAGain.gain.value = inst.f2 * 0.3;
+      lfoA.connect(lfoAGain); lfoAGain.connect(g.gain); lfoA.start();
+      const panner = ctx.createStereoPanner();
+      const lfoB = ctx.createOscillator(); lfoB.frequency.value = inst.f1 * 1.01;
+      const lfoBGain = ctx.createGain(); lfoBGain.gain.value = Math.min(1, inst.f2);
+      lfoB.connect(lfoBGain); lfoBGain.connect(panner.pan); lfoB.start();
+      input.connect(g); g.connect(panner); panner.connect(out);
+      break;
+    }
+    case "phaser": {
+      let node = input;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = inst.f1;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = 800 * inst.f2;
+      lfo.start();
+      for (let i = 0; i < 4; i++) {
+        const ap = ctx.createBiquadFilter(); ap.type = "allpass"; ap.frequency.value = 500 + i * 300;
+        lfo.connect(lfoGain); lfoGain.connect(ap.frequency);
+        node.connect(ap); node = ap;
+      }
+      const wet = ctx.createGain(); wet.gain.value = inst.f2;
+      const dry = ctx.createGain(); dry.gain.value = 1 - inst.f2 * 0.5;
+      node.connect(wet); wet.connect(out);
+      input.connect(dry); dry.connect(out);
+      break;
+    }
+    default: { // chorus, flanger, vibrato share a modulated-delay pattern
+      const delay = ctx.createDelay(0.05);
+      const baseDelay = inst.type === "flanger" ? 0.004 : inst.type === "vibrato" ? 0.006 : 0.018;
+      delay.delayTime.value = baseDelay;
+      const lfo = ctx.createOscillator(); lfo.frequency.value = inst.f1;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = (inst.type === "flanger" ? 0.003 : inst.type === "vibrato" ? 0.004 : 0.006) * Math.max(0.2, inst.f2);
+      lfo.connect(lfoGain); lfoGain.connect(delay.delayTime); lfo.start();
+      const wet = ctx.createGain(); wet.gain.value = inst.type === "vibrato" ? 1 : inst.f2;
+      const dry = ctx.createGain(); dry.gain.value = inst.type === "vibrato" ? 0 : 1 - inst.f2 * 0.5;
+      input.connect(delay); delay.connect(wet); wet.connect(out);
+      input.connect(dry); dry.connect(out);
+    }
+  }
+  return out;
+}
+
+function applyOfflineColor(ctx, input, inst) {
+  const out = ctx.createGain();
+  const amt = inst.f1;
+  switch (inst.type) {
+    case "distortion":
+    case "tape": {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = makeDistortionCurve(1 + amt * (inst.type === "tape" ? 3 : 6));
+      shaper.oversample = "4x";
+      const wetAmt = inst.type === "tape" ? 0.4 + amt * 0.6 : 1;
+      const wet = ctx.createGain(); wet.gain.value = wetAmt;
+      const dry = ctx.createGain(); dry.gain.value = 1 - wetAmt;
+      input.connect(shaper); shaper.connect(wet); wet.connect(out);
+      input.connect(dry); dry.connect(out);
+      break;
+    }
+    case "radio":
+    case "telephone": {
+      const band = ctx.createBiquadFilter(); band.type = "bandpass";
+      band.frequency.value = inst.type === "telephone" ? 1500 : 1800;
+      band.Q.value = inst.type === "telephone" ? 2.2 : 1.1;
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = makeDistortionCurve(1 + amt * 3);
+      input.connect(band); band.connect(shaper); shaper.connect(out);
+      break;
+    }
+    case "robot": {
+      const g = ctx.createGain(); g.gain.value = 0;
+      const osc = ctx.createOscillator(); osc.frequency.value = 45;
+      osc.connect(g.gain); osc.start();
+      input.connect(g); g.connect(out);
+      break;
+    }
+    case "alien": {
+      const g = ctx.createGain(); g.gain.value = 0;
+      const osc = ctx.createOscillator(); osc.frequency.value = 90 + amt * 120;
+      osc.connect(g.gain); osc.start();
+      const lfo = ctx.createOscillator(); lfo.frequency.value = 5;
+      const lfoGain = ctx.createGain(); lfoGain.gain.value = 20;
+      lfo.connect(lfoGain); lfoGain.connect(osc.frequency); lfo.start();
+      input.connect(g); g.connect(out);
+      break;
+    }
+    case "vinyl": {
+      const noiseSrc = ctx.createBufferSource();
+      noiseSrc.buffer = makeNoiseBuffer(ctx, 2); noiseSrc.loop = true;
+      const filt = ctx.createBiquadFilter(); filt.type = "lowpass"; filt.frequency.value = 4000;
+      const noiseGain = ctx.createGain(); noiseGain.gain.value = amt * 0.15;
+      noiseSrc.connect(filt); filt.connect(noiseGain); noiseGain.connect(out);
+      noiseSrc.start();
+      input.connect(out);
+      break;
+    }
+    case "frequency_shifter": {
+      const g = ctx.createGain(); g.gain.value = 0;
+      const osc = ctx.createOscillator(); osc.frequency.value = 40 + amt * 260;
+      osc.connect(g.gain); osc.start();
+      input.connect(g); g.connect(out);
+      const dry = ctx.createGain(); dry.gain.value = 0.4;
+      input.connect(dry); dry.connect(out);
+      break;
+    }
+    case "lofi": {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = makeDistortionCurve(1 + amt * 2);
+      const filt = ctx.createBiquadFilter(); filt.type = "lowpass"; filt.frequency.value = 3200 - amt * 1200;
+      const noiseSrc = ctx.createBufferSource();
+      noiseSrc.buffer = makeNoiseBuffer(ctx, 2); noiseSrc.loop = true;
+      const noiseGain = ctx.createGain(); noiseGain.gain.value = 0.08 + amt * 0.1;
+      noiseSrc.start();
+      input.connect(shaper); shaper.connect(filt); filt.connect(out);
+      noiseSrc.connect(noiseGain); noiseGain.connect(out);
+      break;
+    }
+    default:
+      input.connect(out);
+  }
+  return out;
+}
+
+function buildOfflineGraph(ctx, sourceNode) {
+  let node = sourceNode;
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = controls.gain.read();
+  node.connect(gainNode); node = gainNode;
+
+  if (toggles.noise.checked) {
+    log("Nota: a redução de ruído não tem equivalente nativo e não é replicada no export offline.");
+  }
+
+  if (toggles.dynamics.checked) {
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = controls["comp-threshold"].read();
+    comp.ratio.value = controls["comp-ratio"].read();
+    comp.knee.value = 6; comp.attack.value = 0.01; comp.release.value = 0.2;
+    node.connect(comp); node = comp;
+    const makeup = ctx.createGain();
+    makeup.gain.value = dbToGain(controls["comp-makeup"].read());
+    node.connect(makeup); node = makeup;
+    const deAmt = controls["deesser-amount"].read();
+    if (deAmt > 0.01) {
+      const deEq = ctx.createBiquadFilter();
+      deEq.type = "peaking"; deEq.frequency.value = 6500; deEq.Q.value = 2; deEq.gain.value = -18 * deAmt;
+      node.connect(deEq); node = deEq;
+    }
+  }
+
+  if (toggles.eq.checked) {
+    const low = ctx.createBiquadFilter();
+    low.type = "lowshelf"; low.frequency.value = 220; low.gain.value = controls["eq-low"].read();
+    node.connect(low); node = low;
+    const high = ctx.createBiquadFilter();
+    high.type = "highshelf"; high.frequency.value = 8500; high.gain.value = controls["eq-high"].read();
+    node.connect(high); node = high;
+  }
+
+  groupStates.space.forEach((inst) => { node = applyOfflineSpace(ctx, node, inst); });
+  groupStates.mod.forEach((inst) => { node = applyOfflineMod(ctx, node, inst); });
+  groupStates.color.forEach((inst) => {
+    if (["bitcrusher", "stutter", "granular"].includes(inst.type)) return; // handled in buffer stage
+    node = applyOfflineColor(ctx, node, inst);
+  });
+
+  return node;
+}
+
+function audioBufferToWavBlob(buffer) {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const numFrames = buffer.length;
+  const blockAlign = numChannels * 2;
+  const dataSize = numFrames * blockAlign;
+  const arr = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(arr);
+  const writeString = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+  writeString(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); writeString(8, "WAVE");
+  writeString(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+  writeString(36, "data"); view.setUint32(40, dataSize, true);
+  const channelData = [];
+  for (let ch = 0; ch < numChannels; ch++) channelData.push(buffer.getChannelData(ch));
+  let offset = 44;
+  for (let i = 0; i < numFrames; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      let sample = Math.max(-1, Math.min(1, channelData[ch][i]));
+      sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+      view.setInt16(offset, sample, true);
+      offset += 2;
+    }
+  }
+  return new Blob([view], { type: "audio/wav" });
+}
+
+async function exportProcessedFile() {
+  const btn = $("#record-toggle");
+  if (!currentAudioFile) {
+    log("Carregue um arquivo de áudio para poder exportar (a exportação offline não funciona com o microfone ao vivo).");
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Renderizando…";
+  log("Renderizando áudio processado offline (sem precisar de permissões)…");
+  try {
+    const arrayBuffer = await currentAudioFile.arrayBuffer();
+    const tempCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
+    await tempCtx.close();
+
+    audioBuffer = applyBufferStage(audioBuffer);
+
+    const offlineCtx = new OfflineAudioContext(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+    const source = offlineCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    const outNode = buildOfflineGraph(offlineCtx, source);
+    outNode.connect(offlineCtx.destination);
+    source.start(0);
+
+    const rendered = await offlineCtx.startRendering();
+    const blob = audioBufferToWavBlob(rendered);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `voxis-export-${Date.now()}.wav`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    log("Download gerado: WAV renderizado offline com a cadeia de efeitos aplicada.");
+  } catch (err) {
+    log("Falha ao renderizar o export: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Baixar Áudio Processado (.wav)";
+  }
+}
+
+$("#record-toggle").addEventListener("click", exportProcessedFile);
+
 // ---------- source: file & microphone ----------
 $("#file-input").addEventListener("change", async (e) => {
   const [file] = e.target.files || [];
   if (!file || !player) return;
   stopMicScope();
+  currentAudioFile = file;
   await player.loadFile(file);
   log(`Arquivo carregado: ${file.name}`);
   loadWaveformForFile(file);
 });
 
 let micOn = false;
+// ---------- continuous mic backup ----------
+// Independent getUserMedia stream (like the waveform scope), recorded in
+// ~30s chunks that are auto-downloaded as they arrive, so a crashed tab
+// never loses the whole session. This captures the dry input signal, not
+// the effects chain — for the wet signal live, see the OBS instructions.
+let backupStream = null;
+let backupRecorder = null;
+let backupActive = false;
+let backupPartCount = 0;
+
+async function startBackup() {
+  if (!micOn) {
+    log("Ative o microfone antes de iniciar o backup.");
+    return;
+  }
+  try {
+    backupStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
+    backupRecorder = new MediaRecorder(backupStream, { mimeType });
+    backupPartCount = 0;
+    backupRecorder.ondataavailable = (e) => {
+      if (e.data.size === 0) return;
+      backupPartCount++;
+      const url = URL.createObjectURL(e.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `voxis-mic-backup-parte-${backupPartCount}.webm`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      $("#backup-status").textContent = `Partes salvas: ${backupPartCount}`;
+    };
+    backupRecorder.start(30000);
+    backupActive = true;
+    const btn = $("#backup-toggle");
+    btn.textContent = "Parar Backup";
+    btn.classList.add("is-active");
+    log("Backup contínuo iniciado — cada parte de ~30s será baixada automaticamente.");
+  } catch (err) {
+    log("Não foi possível iniciar o backup: " + err.message);
+  }
+}
+
+function stopBackup() {
+  if (backupRecorder && backupRecorder.state !== "inactive") backupRecorder.stop();
+  if (backupStream) backupStream.getTracks().forEach((t) => t.stop());
+  backupActive = false;
+  backupRecorder = null;
+  backupStream = null;
+  const btn = $("#backup-toggle");
+  btn.textContent = "Iniciar Backup Contínuo do Mic";
+  btn.classList.remove("is-active");
+  if (backupPartCount > 0) log(`Backup contínuo parado. ${backupPartCount} parte(s) salva(s).`);
+}
+
+$("#backup-toggle").addEventListener("click", () => {
+  if (!backupActive) startBackup();
+  else stopBackup();
+});
+
 $("#mic-toggle").addEventListener("click", async () => {
   if (!player) return;
   if (!micOn) {
@@ -1195,6 +1920,7 @@ $("#mic-toggle").addEventListener("click", async () => {
     $("#mic-toggle").textContent = "Usar Microfone";
     log("Microfone desativado.");
     stopMicScope();
+    if (backupActive) stopBackup();
   }
 });
 
